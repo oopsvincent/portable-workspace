@@ -41,8 +41,13 @@ import {
   Download, Upload, Eye,
   Search, PanelLeftClose, PanelLeft,
   CheckCircle, Loader2, FileDown, Package,
+  Share2, History, Clock, RotateCcw,
+  Sun, Moon, Printer, Replace, Star, StarOff,
 } from 'lucide-react';
 import * as storage from '@/lib/storage';
+import * as vim from '@/lib/vim';
+import LZString from 'lz-string';
+import { useTheme } from 'next-themes';
 
 // ===== TYPES =====
 
@@ -62,7 +67,7 @@ interface TabData {
 }
 
 interface DialogState {
-  type: 'newFile' | 'newFolder' | 'rename' | 'delete' | 'clearWorkspace' | null;
+  type: 'newFile' | 'newFolder' | 'rename' | 'delete' | 'clearWorkspace' | 'history' | null;
   path: string;
   isDir: boolean;
   value: string;
@@ -85,11 +90,13 @@ interface FileTreeNodeProps {
   level?: number;
   activeTab: string | null;
   expandedFolders: Set<string>;
+  pinnedFiles: Set<string>;
   onToggleFolder: (path: string) => void;
   onOpenFile: (path: string) => void;
   onDeleteItem: (path: string, isDir: boolean) => void;
   onRenameItem: (path: string, isDir: boolean) => void;
   onNewFileInFolder: (path: string) => void;
+  onTogglePin: (path: string) => void;
 }
 
 interface MarkdownToolbarProps {
@@ -259,7 +266,7 @@ function hello() {
 `;
 
 // ===== FILE TREE NODE =====
-function FileTreeNode({ node, level = 0, activeTab, expandedFolders, onToggleFolder, onOpenFile, onDeleteItem, onRenameItem, onNewFileInFolder }: FileTreeNodeProps) {
+function FileTreeNode({ node, level = 0, activeTab, expandedFolders, pinnedFiles, onToggleFolder, onOpenFile, onDeleteItem, onRenameItem, onNewFileInFolder, onTogglePin }: FileTreeNodeProps) {
   const isExpanded = expandedFolders.has(node.path);
   const isActive = activeTab === node.path;
   const IconComponent = node.isDir
@@ -300,7 +307,7 @@ function FileTreeNode({ node, level = 0, activeTab, expandedFolders, onToggleFol
               <MoreHorizontal className="w-3.5 h-3.5" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent align="end" className="w-44">
             {node.isDir && (
               <>
                 <DropdownMenuItem onClick={() => onNewFileInFolder(node.path)}>
@@ -309,6 +316,15 @@ function FileTreeNode({ node, level = 0, activeTab, expandedFolders, onToggleFol
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
+            )}
+            {!node.isDir && (
+              <DropdownMenuItem onClick={() => onTogglePin(node.path)}>
+                {pinnedFiles.has(node.path) ? (
+                  <><StarOff className="w-4 h-4 mr-2" /> Unpin</>
+                ) : (
+                  <><Star className="w-4 h-4 mr-2" /> Pin to Top</>
+                )}
+              </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={() => onRenameItem(node.path, node.isDir)}>
               <Pencil className="w-4 h-4 mr-2" />
@@ -332,11 +348,13 @@ function FileTreeNode({ node, level = 0, activeTab, expandedFolders, onToggleFol
           level={level + 1}
           activeTab={activeTab}
           expandedFolders={expandedFolders}
+          pinnedFiles={pinnedFiles}
           onToggleFolder={onToggleFolder}
           onOpenFile={onOpenFile}
           onDeleteItem={onDeleteItem}
           onRenameItem={onRenameItem}
           onNewFileInFolder={onNewFileInFolder}
+          onTogglePin={onTogglePin}
         />
       ))}
     </div>
@@ -498,10 +516,21 @@ export default function WorkspacePage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [dialogState, setDialogState] = useState<DialogState>({ type: null, path: '', isDir: false, value: '' });
   const [isDragging, setIsDragging] = useState(false);
+  const [vimEnabled, setVimEnabled] = useState(false);
+  const [vimDisplayMode, setVimDisplayMode] = useState<vim.VimMode>('normal');
+  const [historyVersions, setHistoryVersions] = useState<storage.VersionRecord[]>([]);
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [findText, setFindText] = useState('');
+  const [replaceText, setReplaceText] = useState('');
+  const [pinnedFiles, setPinnedFiles] = useState<Set<string>>(new Set());
+
+  const { theme, setTheme } = useTheme();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastVersionTimeRef = useRef<number>(0);
+  const findInputRef = useRef<HTMLInputElement>(null);
 
   // ===== COMPUTED =====
   const activeTabData = useMemo(() => openTabs.find(t => t.path === activeTab), [openTabs, activeTab]);
@@ -545,6 +574,7 @@ export default function WorkspacePage() {
             if (s.expandedFolders) setExpandedFolders(new Set(s.expandedFolders));
             if (s.sidebarOpen !== undefined) setSidebarOpen(s.sidebarOpen);
             if (s.viewMode) setViewMode(s.viewMode);
+            if (s.pinnedFiles) setPinnedFiles(new Set(s.pinnedFiles));
           }
         } catch (e) { /* ignore */ }
       } catch (err) {
@@ -555,6 +585,22 @@ export default function WorkspacePage() {
       }
     }
     init();
+
+    // Check for shared content in URL hash
+    try {
+      const hash = window.location.hash;
+      if (hash.startsWith('#shared=')) {
+        const compressed = hash.substring(8);
+        const content = LZString.decompressFromEncodedURIComponent(compressed);
+        if (content) {
+          setOpenTabs(prev => [...prev, { path: '_shared.md', content, savedContent: content, type: 'text' }]);
+          setActiveTab('_shared.md');
+          toast.success('Loaded shared content');
+          // Clean the hash
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+    } catch { /* ignore */ }
   }, []);
 
   // ===== PERSIST UI STATE =====
@@ -567,9 +613,10 @@ export default function WorkspacePage() {
         expandedFolders: [...expandedFolders],
         sidebarOpen,
         viewMode,
+        pinnedFiles: [...pinnedFiles],
       }));
     } catch (e) { /* ignore */ }
-  }, [openTabs, activeTab, expandedFolders, sidebarOpen, viewMode, loading]);
+  }, [openTabs, activeTab, expandedFolders, sidebarOpen, viewMode, loading, pinnedFiles]);
 
   // ===== MOBILE DETECTION =====
   useEffect(() => {
@@ -600,6 +647,13 @@ export default function WorkspacePage() {
         await storage.saveFile({ path, content, type: existing?.type || 'text', createdAt: existing?.createdAt || Date.now() });
         setOpenTabs(prev => prev.map(t => t.path === path ? { ...t, savedContent: content } : t));
         setFiles(prev => prev.map(f => f.path === path ? { ...f, content, updatedAt: Date.now() } : f));
+
+        // Save version snapshot (throttled to 1 per 60s per file)
+        const now = Date.now();
+        if (now - lastVersionTimeRef.current > 60000) {
+          lastVersionTimeRef.current = now;
+          storage.saveVersion(path, content).catch(() => {});
+        }
       } catch (err) {
         console.error('Auto-save failed:', err);
         toast.error('Auto-save failed');
@@ -841,6 +895,31 @@ export default function WorkspacePage() {
 
   // ===== KEYBOARD SHORTCUTS ON TEXTAREA =====
   const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Vim keybindings
+    if (vimEnabled) {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      // Allow Ctrl shortcuts even in Vim mode
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 's') {
+          e.preventDefault();
+          if (activeTab) autoSave(activeTab, activeTabData?.content || '');
+          toast.success('Saved');
+          return;
+        }
+        return; // Let other Ctrl combos through
+      }
+
+      const result = vim.handleVimKeyDown(e, textarea, activeTabData?.content || '', updateContent);
+      setVimDisplayMode(result.mode);
+      if (result.preventDefault) e.preventDefault();
+      if (result.cursorPos !== undefined) {
+        setTimeout(() => { textarea.focus(); textarea.setSelectionRange(result.cursorPos!, result.cursorPos!); }, 0);
+      }
+      return;
+    }
+
     if (e.ctrlKey || e.metaKey) {
       const textarea = textareaRef.current;
       const text = activeTabData?.content || '';
@@ -888,7 +967,171 @@ export default function WorkspacePage() {
       updateContent(newText);
       setTimeout(() => { textarea.focus(); textarea.setSelectionRange(start + 2, start + 2); }, 10);
     }
-  }, [activeTab, activeTabData, autoSave, updateContent]);
+  }, [activeTab, activeTabData, autoSave, updateContent, vimEnabled]);
+
+  // ===== SHARE VIA URL =====
+  const handleShare = useCallback(() => {
+    if (!activeTabData) return;
+    try {
+      const compressed = LZString.compressToEncodedURIComponent(activeTabData.content);
+      const url = `${window.location.origin}${window.location.pathname}#shared=${compressed}`;
+      navigator.clipboard.writeText(url).then(() => {
+        toast.success('Share link copied to clipboard!');
+      }).catch(() => {
+        // Fallback: show the URL in a prompt
+        window.prompt('Copy this share link:', url);
+      });
+    } catch {
+      toast.error('Failed to generate share link');
+    }
+  }, [activeTabData]);
+
+  // ===== VERSION HISTORY =====
+  const openHistory = useCallback(async () => {
+    if (!activeTab) return;
+    try {
+      const versions = await storage.getVersions(activeTab);
+      setHistoryVersions(versions);
+      setDialogState({ type: 'history', path: activeTab, isDir: false, value: '' });
+    } catch {
+      toast.error('Failed to load history');
+    }
+  }, [activeTab]);
+
+  const restoreVersion = useCallback(async (timestamp: number) => {
+    if (!activeTab) return;
+    const content = await storage.restoreVersion(activeTab, timestamp);
+    if (content !== null) {
+      updateContent(content);
+      setDialogState({ type: null, path: '', isDir: false, value: '' });
+      toast.success('Version restored');
+    }
+  }, [activeTab, updateContent]);
+
+  // ===== VIM TOGGLE =====
+  const toggleVim = useCallback(() => {
+    setVimEnabled(prev => {
+      const next = !prev;
+      if (next) {
+        vim.resetVim();
+        setVimDisplayMode('normal');
+        toast.success('Vim mode enabled');
+      } else {
+        toast.success('Vim mode disabled');
+      }
+      try { localStorage.setItem('pw-vim', String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Load vim preference
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('pw-vim');
+      if (saved === 'true') {
+        setVimEnabled(true);
+        vim.resetVim();
+        setVimDisplayMode('normal');
+      }
+    } catch {}
+  }, []);
+
+  // ===== PRINT / PDF EXPORT =====
+  const handlePrint = useCallback(() => {
+    if (!activeTabData) return;
+    // Switch to preview mode temporarily for printing
+    const prevMode = viewMode;
+    if (prevMode !== 'preview') setViewMode('preview');
+    setTimeout(() => {
+      window.print();
+      if (prevMode !== 'preview') setViewMode(prevMode);
+    }, 100);
+  }, [activeTabData, viewMode]);
+
+  // ===== FIND & REPLACE =====
+  const handleFind = useCallback(() => {
+    if (!activeTabData || !findText) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const text = activeTabData.content;
+    const idx = text.indexOf(findText, textarea.selectionEnd);
+    if (idx !== -1) {
+      textarea.focus();
+      textarea.setSelectionRange(idx, idx + findText.length);
+    } else {
+      // Wrap around
+      const wrapIdx = text.indexOf(findText);
+      if (wrapIdx !== -1) {
+        textarea.focus();
+        textarea.setSelectionRange(wrapIdx, wrapIdx + findText.length);
+      } else {
+        toast.error('No match found');
+      }
+    }
+  }, [activeTabData, findText]);
+
+  const handleReplaceOne = useCallback(() => {
+    if (!activeTabData || !findText) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = activeTabData.content.substring(start, end);
+    if (selected === findText) {
+      const newText = activeTabData.content.substring(0, start) + replaceText + activeTabData.content.substring(end);
+      updateContent(newText);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + replaceText.length, start + replaceText.length);
+        handleFind();
+      }, 10);
+    } else {
+      handleFind();
+    }
+  }, [activeTabData, findText, replaceText, updateContent, handleFind]);
+
+  const handleReplaceAll = useCallback(() => {
+    if (!activeTabData || !findText) return;
+    const newText = activeTabData.content.split(findText).join(replaceText);
+    updateContent(newText);
+    toast.success('Replaced all occurrences');
+  }, [activeTabData, findText, replaceText, updateContent]);
+
+  // ===== PIN / UNPIN FILES =====
+  const togglePin = useCallback((path: string) => {
+    setPinnedFiles(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+        toast.success('Unpinned');
+      } else {
+        next.add(path);
+        toast.success('Pinned to top');
+      }
+      return next;
+    });
+  }, []);
+
+  // Ctrl+H for find & replace
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        setFindReplaceOpen(prev => !prev);
+        setTimeout(() => findInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape' && findReplaceOpen) {
+        setFindReplaceOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [findReplaceOpen]);
+
+  // ===== THEME TOGGLE =====
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  }, [theme, setTheme]);
 
   // ===== DIALOG HELPERS =====
   const openDialog = (type: DialogState['type'], path = '', isDir = false) => {
@@ -927,7 +1170,7 @@ export default function WorkspacePage() {
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openDialog('newFile')}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { if (isMobile) setMobileSidebarOpen(false); openDialog('newFile'); }}>
                   <FilePlus className="w-3.5 h-3.5" />
                 </Button>
               </TooltipTrigger>
@@ -935,7 +1178,7 @@ export default function WorkspacePage() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openDialog('newFolder')}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { if (isMobile) setMobileSidebarOpen(false); openDialog('newFolder'); }}>
                   <FolderPlus className="w-3.5 h-3.5" />
                 </Button>
               </TooltipTrigger>
@@ -943,12 +1186,25 @@ export default function WorkspacePage() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => fileInputRef.current?.click()}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => {
+                  if (isMobile) setMobileSidebarOpen(false);
+                  setTimeout(() => fileInputRef.current?.click(), 150);
+                }}>
                   <Upload className="w-3.5 h-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">Import ZIP</TooltipContent>
             </Tooltip>
+            {isMobile && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setMobileSidebarOpen(false)}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">Close</TooltipContent>
+              </Tooltip>
+            )}
           </TooltipProvider>
         </div>
       </div>
@@ -966,6 +1222,39 @@ export default function WorkspacePage() {
       </div>
 
       <ScrollArea className="flex-1">
+        {/* Pinned Files Section */}
+        {pinnedFiles.size > 0 && (
+          <div className="py-1 border-b border-border/50">
+            <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1">
+              <Star className="w-3 h-3" /> Pinned
+            </div>
+            {[...pinnedFiles].map(path => {
+              const name = path.split('/').pop() || path;
+              const isActive = activeTab === path;
+              return (
+                <div
+                  key={path}
+                  className={`
+                    group flex items-center gap-1.5 px-3 py-1 text-xs cursor-pointer rounded-sm mx-1
+                    hover:bg-accent/60 transition-colors
+                    ${isActive ? 'bg-accent text-accent-foreground font-medium' : 'text-muted-foreground'}
+                  `}
+                  onClick={() => openFile(path)}
+                >
+                  <Star className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                  <span className="truncate flex-1">{name}</span>
+                  <button
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/80 transition-opacity flex-shrink-0"
+                    onClick={(e) => { e.stopPropagation(); togglePin(path); }}
+                  >
+                    <StarOff className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <div className="py-1">
           {filteredTree.children.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-muted-foreground">
@@ -980,11 +1269,13 @@ export default function WorkspacePage() {
                 level={0}
                 activeTab={activeTab}
                 expandedFolders={expandedFolders}
+                pinnedFiles={pinnedFiles}
                 onToggleFolder={toggleFolder}
                 onOpenFile={openFile}
                 onDeleteItem={(p, d) => openDialog('delete', p, d)}
                 onRenameItem={(p, d) => openDialog('rename', p, d)}
                 onNewFileInFolder={(p) => openDialog('newFile', p)}
+                onTogglePin={togglePin}
               />
             ))
           )}
@@ -1049,7 +1340,7 @@ export default function WorkspacePage() {
                   <Menu className="w-4 h-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0">
+              <SheetContent side="left" className="w-72 p-0 [&>button:last-child]:hidden">
                 {sidebarContent}
               </SheetContent>
             </Sheet>
@@ -1126,11 +1417,36 @@ export default function WorkspacePage() {
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
+              {activeTabData && (
+                <>
+                  <DropdownMenuItem onClick={handleShare}>
+                    <Share2 className="w-4 h-4 mr-2" /> Share via URL
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={openHistory}>
+                    <History className="w-4 h-4 mr-2" /> Version History
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onClick={() => openDialog('newFile')}>
                 <FilePlus className="w-4 h-4 mr-2" /> New File
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openDialog('newFolder')}>
                 <FolderPlus className="w-4 h-4 mr-2" /> New Folder
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {activeTabData && (
+                <DropdownMenuItem onClick={handlePrint}>
+                  <Printer className="w-4 h-4 mr-2" /> Print / PDF
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => { setFindReplaceOpen(prev => !prev); setTimeout(() => findInputRef.current?.focus(), 50); }}>
+                <Replace className="w-4 h-4 mr-2" /> Find & Replace
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={toggleTheme}>
+                {theme === 'dark' ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
+                {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1181,6 +1497,47 @@ export default function WorkspacePage() {
                 onViewModeChange={setViewMode}
                 isMobile={isMobile}
               />
+
+              {/* Find & Replace Bar */}
+              {findReplaceOpen && (
+                <div className="findbar-enter border-b border-border bg-card/60 backdrop-blur px-3 py-2 flex items-center gap-2 flex-wrap" data-no-print>
+                  <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                    <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    <Input
+                      ref={findInputRef}
+                      placeholder="Find..."
+                      value={findText}
+                      onChange={(e) => setFindText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleFind(); }}
+                      className="h-7 text-xs flex-1"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                    <Replace className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    <Input
+                      placeholder="Replace..."
+                      value={replaceText}
+                      onChange={(e) => setReplaceText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleReplaceOne(); }}
+                      className="h-7 text-xs flex-1"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleFind}>
+                      Find
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReplaceOne}>
+                      Replace
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReplaceAll}>
+                      All
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setFindReplaceOpen(false)}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex-1 overflow-hidden">
                 {activeTabData.type === 'binary' ? (
@@ -1264,12 +1621,45 @@ export default function WorkspacePage() {
               <CheckCircle className="w-3 h-3" /> Saved
             </span>
           ) : null}
+          {activeTabData && (
+            <span className="opacity-70">
+              {activeTabData.content.split(/\s+/).filter(Boolean).length} words · {activeTabData.content.length} chars
+            </span>
+          )}
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-3">
-          {activeTab && <span className="opacity-70">{activeTab}</span>}
+          {vimEnabled && (
+            <button
+              onClick={toggleVim}
+              className={`font-mono font-bold px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${
+                vimDisplayMode === 'normal'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+              }`}
+            >
+              {vimDisplayMode === 'normal' ? '-- NORMAL --' : '-- INSERT --'}
+            </button>
+          )}
+          {!vimEnabled && (
+            <button
+              onClick={toggleVim}
+              className="font-mono opacity-40 hover:opacity-80 cursor-pointer transition-opacity text-[9px]"
+              title="Enable Vim mode"
+            >
+              VIM
+            </button>
+          )}
+          {activeTab && <span className="opacity-70 max-w-[120px] truncate">{activeTab}</span>}
           <span>{files.filter(f => f.type !== 'folder').length} files</span>
           <span className="opacity-70">IndexedDB</span>
+          <button
+            onClick={toggleTheme}
+            className="opacity-50 hover:opacity-100 cursor-pointer transition-opacity"
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
+          </button>
         </div>
       </footer>
 
@@ -1366,6 +1756,62 @@ export default function WorkspacePage() {
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button variant="destructive" onClick={confirmDialog}>Clear All</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* HISTORY DIALOG */}
+      <Dialog open={dialogState.type === 'history'} onOpenChange={(open) => !open && closeDialog()}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-4 h-4" /> Version History
+            </DialogTitle>
+            <DialogDescription>
+              {dialogState.path} — {historyVersions.length} version{historyVersions.length !== 1 ? 's' : ''} saved
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[50vh]">
+            {historyVersions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                <Clock className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p>No versions saved yet</p>
+                <p className="text-xs mt-1 opacity-70">Versions are auto-saved every 60 seconds while editing</p>
+              </div>
+            ) : (
+              <div className="space-y-2 pr-3">
+                {historyVersions.map((v) => {
+                  const date = new Date(v.timestamp);
+                  const preview = v.content.substring(0, 120).replace(/\n/g, ' ');
+                  return (
+                    <div
+                      key={v.timestamp}
+                      className="p-3 rounded-lg border border-border/50 hover:border-border hover:bg-muted/30 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium">
+                          {date.toLocaleDateString()} {date.toLocaleTimeString()}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity gap-1"
+                          onClick={() => restoreVersion(v.timestamp)}
+                        >
+                          <RotateCcw className="w-3 h-3" /> Restore
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                        {preview || '(empty)'}{v.content.length > 120 ? '...' : ''}
+                      </p>
+                      <span className="text-[10px] text-muted-foreground/60 mt-1 block">
+                        {v.content.length.toLocaleString()} characters
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>

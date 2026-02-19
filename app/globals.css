@@ -331,3 +331,40 @@
   color: hsl(var(--primary));
   z-index: 50;
 }
+
+/* Print styles */
+@media print {
+  body { background: white !important; color: black !important; }
+  header, footer, [data-sidebar], [data-toolbar],
+  [data-no-print], .toaster { display: none !important; }
+  .markdown-body {
+    max-width: 100% !important;
+    padding: 0 !important;
+    color: black !important;
+  }
+  .markdown-body * { color: black !important; }
+  .markdown-body code {
+    background: #f5f5f5 !important;
+    color: #333 !important;
+  }
+  .markdown-body pre {
+    background: #f5f5f5 !important;
+    border: 1px solid #ddd !important;
+  }
+  .markdown-body a { color: #0366d6 !important; text-decoration: underline !important; }
+  .markdown-body table { border-collapse: collapse !important; }
+  .markdown-body th, .markdown-body td {
+    border: 1px solid #ccc !important;
+    color: black !important;
+  }
+}
+
+/* Find & Replace bar slide-in */
+@keyframes findbar-slide {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.findbar-enter {
+  animation: findbar-slide 0.15s ease-out;
+}
+

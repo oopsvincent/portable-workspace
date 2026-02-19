@@ -18,6 +18,15 @@ A **private, browser-based** markdown editor and file manager. All your data sta
 - **Responsive** — Works on desktop and mobile with an adaptive sidebar
 - **Dark Mode** — Beautiful dark theme out of the box
 - **100% Private** — Zero server-side storage, everything lives in your browser's IndexedDB
+- **📲 PWA / Installable** — Install as a desktop or mobile app, works fully offline
+- **🔗 Share via URL** — Compress any file into a shareable link using LZ-string encoding
+- **⌨️ Vim Keybindings** — Toggle Vim mode with `hjkl` navigation, `dd/yy/p`, `i/a/o` insert, and more
+- **📜 Version History** — Automatic snapshots every 60s with visual timeline and one-click restore
+- **📊 Word & Char Count** — Live word and character count in the status bar
+- **🌗 Light/Dark Theme** — Toggle between light and dark mode with system preference support
+- **🖨️ Print / PDF Export** — Print any file or save as PDF with clean formatting
+- **🔍 Find & Replace** — `Ctrl+H` to open find & replace bar with find-next, replace, and replace-all
+- **📌 Pinned Files** — Pin frequently used files to the top of the sidebar
 
 ## 🚀 Getting Started
 
@@ -63,6 +72,7 @@ pnpm start
 | [Sonner](https://sonner.emilkowal.ski/) | Toast notifications |
 | [JSZip](https://stuk.github.io/jszip/) | ZIP import/export |
 | [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) | Browser-local storage |
+| [LZ-String](https://pieroxy.net/blog/pages/lz-string/index.html) | URL-safe content compression for sharing |
 
 ## 📁 Project Structure
 
@@ -71,14 +81,18 @@ portable-workspace/
 ├── app/
 │   ├── api/             # API routes
 │   ├── globals.css      # Global styles & CSS variables
-│   ├── layout.tsx       # Root layout
+│   ├── layout.tsx       # Root layout (PWA metadata)
 │   └── page.tsx         # Main workspace page
 ├── components/
 │   └── ui/              # shadcn/ui components
 ├── lib/
-│   ├── storage.ts       # IndexedDB storage layer
-│   └── utils.ts         # Utility functions
-├── public/              # Static assets
+│   ├── storage.ts       # IndexedDB storage + version history
+│   ├── utils.ts         # Utility functions
+│   └── vim.ts           # Vim keybinding engine
+├── public/
+│   ├── icon.svg         # PWA app icon
+│   ├── manifest.json    # PWA manifest
+│   └── sw.js            # Service worker (offline support)
 ├── tailwind.config.js   # Tailwind configuration
 ├── tsconfig.json        # TypeScript configuration
 └── package.json

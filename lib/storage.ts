@@ -1,6 +1,7 @@
 const DB_NAME = 'portable-workspace';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const FILES_STORE = 'files';
+const HISTORY_STORE = 'file-history';
 
 export interface FileRecord {
   path: string;
@@ -8,6 +9,12 @@ export interface FileRecord {
   type: string;
   createdAt: number;
   updatedAt?: number;
+}
+
+export interface VersionRecord {
+  path: string;
+  content: string;
+  timestamp: number;
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -32,6 +39,10 @@ function getDB(): Promise<IDBDatabase> {
         const db = (event.target as IDBOpenDBRequest).result;
         if (!db.objectStoreNames.contains(FILES_STORE)) {
           db.createObjectStore(FILES_STORE, { keyPath: 'path' });
+        }
+        if (!db.objectStoreNames.contains(HISTORY_STORE)) {
+          const historyStore = db.createObjectStore(HISTORY_STORE, { keyPath: ['path', 'timestamp'] });
+          historyStore.createIndex('by-path', 'path', { unique: false });
         }
       };
     });
@@ -159,5 +170,62 @@ export async function renameFolder(oldPrefix: string, newPrefix: string): Promis
     });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ===== VERSION HISTORY =====
+
+const MAX_VERSIONS_PER_FILE = 20;
+
+export async function saveVersion(path: string, content: string): Promise<void> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    const store = tx.objectStore(HISTORY_STORE);
+    store.put({ path, content, timestamp: Date.now() });
+
+    // Prune old versions beyond the limit
+    const idx = store.index('by-path');
+    const req = idx.getAllKeys(IDBKeyRange.only(path));
+    req.onsuccess = () => {
+      const keys = req.result as [string, number][];
+      if (keys.length > MAX_VERSIONS_PER_FILE) {
+        // Keys come sorted by [path, timestamp] — delete oldest
+        const toDelete = keys.slice(0, keys.length - MAX_VERSIONS_PER_FILE);
+        toDelete.forEach(key => store.delete(key));
+      }
+    };
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getVersions(path: string): Promise<VersionRecord[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HISTORY_STORE, 'readonly');
+    const idx = tx.objectStore(HISTORY_STORE).index('by-path');
+    const request = idx.getAll(IDBKeyRange.only(path));
+    request.onsuccess = () => {
+      const versions = (request.result as VersionRecord[]) || [];
+      // Sort newest first
+      versions.sort((a, b) => b.timestamp - a.timestamp);
+      resolve(versions);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function restoreVersion(path: string, timestamp: number): Promise<string | null> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HISTORY_STORE, 'readonly');
+    const request = tx.objectStore(HISTORY_STORE).get([path, timestamp]);
+    request.onsuccess = () => {
+      const version = request.result as VersionRecord | undefined;
+      resolve(version?.content ?? null);
+    };
+    request.onerror = () => reject(request.error);
   });
 }

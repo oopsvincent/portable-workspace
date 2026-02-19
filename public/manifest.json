@@ -1,0 +1,19 @@
+{
+  "name": "Portable Workspace",
+  "short_name": "Workspace",
+  "description": "Private, browser-based markdown editor and file manager. All data stays in your browser.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#06b6d4",
+  "orientation": "any",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
