@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  transpilePackages: ['@blocknote/core', '@blocknote/react', '@blocknote/shadcn'],
 };
 
 export default nextConfig;

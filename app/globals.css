@@ -317,7 +317,7 @@
 }
 
 .drop-zone-active::after {
-  content: 'Drop ZIP file to import';
+  content: 'Drop files to import';
   position: absolute;
   inset: 0;
   display: flex;
@@ -330,6 +330,56 @@
   font-weight: 600;
   color: hsl(var(--primary));
   z-index: 50;
+}
+
+/* ===== Block Editor (BlockNote) ===== */
+.block-editor-wrapper {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* BlockNote CSS variable overrides for light mode */
+.block-editor-wrapper [data-color-scheme="light"],
+.block-editor-wrapper [data-color-scheme="light"] [data-bn-color-scheme] {
+  --bn-colors-editor-text: hsl(var(--foreground));
+  --bn-colors-editor-background: hsl(var(--background));
+  --bn-colors-hovered-background: hsl(var(--accent));
+  --bn-colors-selected-background: hsl(var(--accent));
+  --bn-colors-menu-background: hsl(var(--popover));
+  --bn-colors-menu-text: hsl(var(--popover-foreground));
+}
+
+/* BlockNote CSS variable overrides for dark mode */
+.block-editor-wrapper [data-color-scheme="dark"],
+.block-editor-wrapper [data-color-scheme="dark"] [data-bn-color-scheme] {
+  --bn-colors-editor-text: hsl(var(--foreground));
+  --bn-colors-editor-background: hsl(var(--background));
+  --bn-colors-hovered-background: hsl(var(--accent));
+  --bn-colors-selected-background: hsl(var(--accent));
+  --bn-colors-menu-background: hsl(var(--popover));
+  --bn-colors-menu-text: hsl(var(--popover-foreground));
+}
+
+/* Suggestion menu item highlight fix */
+.block-editor-wrapper [role="option"][aria-selected="true"],
+.block-editor-wrapper [role="option"][data-hovered="true"],
+.block-editor-wrapper [role="option"]:hover {
+  background-color: hsl(var(--accent)) !important;
+  color: hsl(var(--accent-foreground)) !important;
+}
+
+
+/* ===== Canvas Editor (Excalidraw) ===== */
+.canvas-editor-wrapper {
+  background: hsl(var(--background));
+}
+
+.canvas-editor-wrapper .excalidraw {
+  --color-primary: hsl(var(--primary)) !important;
+}
+
+.canvas-editor-wrapper .excalidraw .App-menu_top {
+  border-radius: 8px;
 }
 
 /* Print styles */

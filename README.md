@@ -1,6 +1,6 @@
 # 📦 Portable Workspace
 
-A **private, browser-based** markdown editor and file manager. All your data stays in your browser — nothing is ever sent to a server.
+A **private, browser-based** workspace with a Notion-like block editor, canvas drawing, and full file management. All your data stays in your browser — nothing is ever sent to a server.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-14-black)
@@ -8,25 +8,35 @@ A **private, browser-based** markdown editor and file manager. All your data sta
 
 ## ✨ Features
 
-- **Markdown Editor** — Rich toolbar with bold, italic, headings, lists, code blocks, links, and more
-- **Live Preview** — Split-pane view with real-time markdown rendering (edit, split, or preview mode)
-- **File Manager** — Create, rename, delete, and organize files into folders with a tree sidebar
-- **Auto-Save** — Changes are automatically saved to IndexedDB in your browser
-- **Import/Export** — Import ZIP workspaces or export your entire workspace as a ZIP
-- **Drag & Drop** — Drop a `.zip` file anywhere to import it instantly
-- **Keyboard Shortcuts** — `Ctrl+B` (bold), `Ctrl+I` (italic), `Ctrl+K` (link), `Ctrl+S` (save), `Tab` (indent)
-- **Responsive** — Works on desktop and mobile with an adaptive sidebar
-- **Dark Mode** — Beautiful dark theme out of the box
-- **100% Private** — Zero server-side storage, everything lives in your browser's IndexedDB
+### Editors
+- **📝 Block Editor** — Notion-like editing powered by [BlockNote](https://www.blocknotejs.org/) with slash commands, drag handles, and rich formatting
+- **✏️ Markdown Editor** — Raw markdown editing with a rich toolbar (bold, italic, headings, lists, code blocks, links)
+- **🎨 Canvas Editor** — Freeform drawing and diagramming powered by [Excalidraw](https://excalidraw.com/) (`.canvas` files)
+- **👁️ Live Preview** — Split-pane, edit-only, or preview-only modes for markdown
+
+### File Management
+- **📁 File Manager** — Create, rename, delete, and organize files into folders with a tree sidebar
+- **📂 Folder Import** — Drag & drop files directly onto folders, or use "Import Files Here" from folder context menu
+- **📦 Import/Export** — Import ZIP / `.enclave` archives or export your entire workspace as `.enclave`
+- **🗂️ Folder Upload** — Import entire folder structures preserving hierarchy
+- **🖱️ Drag & Drop** — Drop files or archives anywhere to import instantly
+
+### Editor Features
+- **💾 Auto-Save** — Changes are automatically saved to IndexedDB
+- **⌨️ Keyboard Shortcuts** — `Ctrl+B` (bold), `Ctrl+I` (italic), `Ctrl+K` (link), `Ctrl+S` (save), `Tab` (indent)
+- **⌨️ Vim Keybindings** — Toggle Vim mode with `hjkl` navigation, `dd/yy/p`, `i/a/o` insert, and more
+- **🔍 Find & Replace** — `Ctrl+H` to open find & replace bar with find-next, replace, and replace-all
+- **📜 Version History** — Automatic snapshots every 60s with visual timeline and one-click restore
+- **📊 Word & Char Count** — Live counts in the status bar
+
+### Platform
 - **📲 PWA / Installable** — Install as a desktop or mobile app, works fully offline
 - **🔗 Share via URL** — Compress any file into a shareable link using LZ-string encoding
-- **⌨️ Vim Keybindings** — Toggle Vim mode with `hjkl` navigation, `dd/yy/p`, `i/a/o` insert, and more
-- **📜 Version History** — Automatic snapshots every 60s with visual timeline and one-click restore
-- **📊 Word & Char Count** — Live word and character count in the status bar
-- **🌗 Light/Dark Theme** — Toggle between light and dark mode with system preference support
+- **🌗 Light/Dark Theme** — Toggle with system preference support
 - **🖨️ Print / PDF Export** — Print any file or save as PDF with clean formatting
-- **🔍 Find & Replace** — `Ctrl+H` to open find & replace bar with find-next, replace, and replace-all
 - **📌 Pinned Files** — Pin frequently used files to the top of the sidebar
+- **📱 Responsive** — Works on desktop and mobile with an adaptive sidebar
+- **🔒 100% Private** — Zero server-side storage, everything lives in your browser's IndexedDB
 
 ## 🚀 Getting Started
 
@@ -66,6 +76,8 @@ pnpm start
 | [TypeScript](https://www.typescriptlang.org/) | Type safety |
 | [Tailwind CSS](https://tailwindcss.com/) | Utility-first styling |
 | [shadcn/ui](https://ui.shadcn.com/) | UI components (Radix UI primitives) |
+| [BlockNote](https://www.blocknotejs.org/) | Notion-like block editor |
+| [Excalidraw](https://excalidraw.com/) | Canvas / drawing editor |
 | [Lucide React](https://lucide.dev/) | Icons |
 | [react-resizable-panels](https://github.com/bvaughn/react-resizable-panels) | Split pane editor/preview |
 | [react-markdown](https://github.com/remarkjs/react-markdown) | Markdown rendering |
@@ -84,7 +96,12 @@ portable-workspace/
 │   ├── layout.tsx       # Root layout (PWA metadata)
 │   └── page.tsx         # Main workspace page
 ├── components/
+│   ├── editors/
+│   │   ├── block-editor.tsx   # BlockNote block editor
+│   │   └── canvas-editor.tsx  # Excalidraw canvas editor
 │   └── ui/              # shadcn/ui components
+├── docs/
+│   └── CHANGELOG.md     # Project changelog
 ├── lib/
 │   ├── storage.ts       # IndexedDB storage + version history
 │   ├── utils.ts         # Utility functions
@@ -100,7 +117,7 @@ portable-workspace/
 
 ## 🤝 Contributing
 
-Contributions are welcome! Feel free to open issues or submit pull requests.
+Contributions are welcome! Please read the [changelog](docs/CHANGELOG.md) for recent changes before contributing.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -115,5 +132,5 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 ---
 
 <p align="center">
-  Built with the help of <strong>Claude Opus 4.6</strong> by Anthropic 🤖
+  Built with ❤️ as a FOSS project · <a href="docs/CHANGELOG.md">Changelog</a>
 </p>

@@ -8,6 +8,10 @@
         "start": "next start"
     },
     "dependencies": {
+        "@blocknote/core": "^0.47.0",
+        "@blocknote/react": "^0.47.0",
+        "@blocknote/shadcn": "^0.47.0",
+        "@excalidraw/excalidraw": "0.17.6",
         "@hookform/resolvers": "^5.1.1",
         "@radix-ui/react-accordion": "^1.2.11",
         "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -61,6 +65,7 @@
         "sonner": "^2.0.5",
         "tailwind-merge": "^3.3.1",
         "tailwindcss-animate": "^1.0.7",
+        "tiptap-markdown": "^0.9.0",
         "uuid": "^9.0.1",
         "vaul": "^1.1.2",
         "zod": "^3.25.67"

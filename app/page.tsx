@@ -34,20 +34,25 @@ import { Toaster, toast } from 'sonner';
 import type { LucideIcon } from 'lucide-react';
 import {
   Menu, X, ChevronRight, ChevronDown,
-  FileText, File, Folder, FolderOpen,
+  FileText, File, Folder, FolderOpen, FolderUp,
   FilePlus, FolderPlus, Trash2, Pencil, MoreHorizontal,
   Bold, Italic, Heading1, Heading2, Heading3,
   List, ListOrdered, Code, Quote, Link2, Minus,
-  Download, Upload, Eye,
+  Download, Upload, Eye, ImageIcon,
   Search, PanelLeftClose, PanelLeft,
   CheckCircle, Loader2, FileDown, Package,
   Share2, History, Clock, RotateCcw,
   Sun, Moon, Printer, Replace, Star, StarOff,
+  Brush, FileCode,
 } from 'lucide-react';
 import * as storage from '@/lib/storage';
 import * as vim from '@/lib/vim';
 import LZString from 'lz-string';
 import { useTheme } from 'next-themes';
+import dynamic from 'next/dynamic';
+
+const BlockEditor = dynamic(() => import('@/components/editors/block-editor'), { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div> });
+const CanvasEditor = dynamic(() => import('@/components/editors/canvas-editor'), { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div> });
 
 // ===== TYPES =====
 
@@ -97,6 +102,7 @@ interface FileTreeNodeProps {
   onRenameItem: (path: string, isDir: boolean) => void;
   onNewFileInFolder: (path: string) => void;
   onTogglePin: (path: string) => void;
+  onImportIntoFolder: (path: string, files: FileList) => void;
 }
 
 interface MarkdownToolbarProps {
@@ -266,25 +272,53 @@ function hello() {
 `;
 
 // ===== FILE TREE NODE =====
-function FileTreeNode({ node, level = 0, activeTab, expandedFolders, pinnedFiles, onToggleFolder, onOpenFile, onDeleteItem, onRenameItem, onNewFileInFolder, onTogglePin }: FileTreeNodeProps) {
+function FileTreeNode({ node, level = 0, activeTab, expandedFolders, pinnedFiles, onToggleFolder, onOpenFile, onDeleteItem, onRenameItem, onNewFileInFolder, onTogglePin, onImportIntoFolder }: FileTreeNodeProps) {
   const isExpanded = expandedFolders.has(node.path);
   const isActive = activeTab === node.path;
+  const [dragOver, setDragOver] = React.useState(false);
+  const folderInputRef = React.useRef<HTMLInputElement>(null);
   const IconComponent = node.isDir
     ? (isExpanded ? FolderOpen : Folder)
     : getFileIcon(node.name);
 
   return (
     <div>
+      {/* Hidden file input for importing into this folder */}
+      {node.isDir && (
+        <input
+          ref={folderInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              onImportIntoFolder(node.path, e.target.files);
+              e.target.value = '';
+            }
+          }}
+        />
+      )}
       <div
         className={`
           group flex items-center gap-1 px-2 py-1 text-sm cursor-pointer rounded-sm mx-1
           hover:bg-accent/60 transition-colors
           ${isActive ? 'bg-accent text-accent-foreground font-medium' : 'text-muted-foreground'}
+          ${dragOver ? 'bg-sky-500/20 ring-1 ring-sky-400/50' : ''}
         `}
         style={{ paddingLeft: `${level * 14 + 8}px` }}
         onClick={() => {
           if (node.isDir) onToggleFolder(node.path);
           else onOpenFile(node.path);
+        }}
+        onDragOver={(e) => {
+          if (node.isDir) { e.preventDefault(); e.stopPropagation(); setDragOver(true); }
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          if (node.isDir && e.dataTransfer?.files?.length > 0) {
+            e.preventDefault(); e.stopPropagation(); setDragOver(false);
+            onImportIntoFolder(node.path, e.dataTransfer.files);
+          }
         }}
       >
         {node.isDir ? (
@@ -313,6 +347,10 @@ function FileTreeNode({ node, level = 0, activeTab, expandedFolders, pinnedFiles
                 <DropdownMenuItem onClick={() => onNewFileInFolder(node.path)}>
                   <FilePlus className="w-4 h-4 mr-2" />
                   New File Here
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => folderInputRef.current?.click()}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import Files Here
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
@@ -355,6 +393,7 @@ function FileTreeNode({ node, level = 0, activeTab, expandedFolders, pinnedFiles
           onRenameItem={onRenameItem}
           onNewFileInFolder={onNewFileInFolder}
           onTogglePin={onTogglePin}
+          onImportIntoFolder={onImportIntoFolder}
         />
       ))}
     </div>
@@ -529,8 +568,11 @@ export default function WorkspacePage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const lastVersionTimeRef = useRef<number>(0);
   const findInputRef = useRef<HTMLInputElement>(null);
+  const [editorMode, setEditorMode] = useState<'block' | 'markdown' | 'canvas'>('markdown');
 
   // ===== COMPUTED =====
   const activeTabData = useMemo(() => openTabs.find(t => t.path === activeTab), [openTabs, activeTab]);
@@ -784,38 +826,52 @@ export default function WorkspacePage() {
   // ===== IMPORT/EXPORT =====
   const handleImportZip = useCallback(async (file: globalThis.File) => {
     try {
-      toast.info('Importing workspace...');
+      toast.info('Importing enclave...');
       const JSZip = (await import('jszip')).default;
       const zip = await JSZip.loadAsync(file);
       const newFiles: { path: string; content: string; type: string; createdAt: number }[] = [];
       const entries = Object.entries(zip.files);
 
+      // Check for manifest.json
+      let manifest: { files?: { path: string; type: string; createdAt: number }[] } | null = null;
+      if (zip.files['manifest.json']) {
+        try {
+          const manifestContent = await zip.files['manifest.json'].async('string');
+          manifest = JSON.parse(manifestContent);
+        } catch { /* ignore bad manifest */ }
+      }
+
       let commonPrefix = '';
       const nonDir = entries.filter(([_, e]) => !e.dir);
       if (nonDir.length > 0) {
-        const paths = nonDir.map(([p]) => p);
-        const first = paths[0].split('/');
-        if (first.length > 1 && paths.every(p => p.startsWith(first[0] + '/'))) {
-          commonPrefix = first[0] + '/';
+        const paths = nonDir.map(([p]) => p).filter(p => p !== 'manifest.json');
+        if (paths.length > 0) {
+          const first = paths[0].split('/');
+          if (first.length > 1 && paths.every(p => p.startsWith(first[0] + '/'))) {
+            commonPrefix = first[0] + '/';
+          }
         }
       }
 
       for (const [path, entry] of entries) {
-        if (entry.dir) continue;
+        if (entry.dir || path === 'manifest.json') continue;
         let clean = path;
         if (commonPrefix && clean.startsWith(commonPrefix)) clean = clean.substring(commonPrefix.length);
         if (!clean || clean.startsWith('__MACOSX') || clean.includes('.DS_Store')) continue;
 
+        // Use manifest metadata if available
+        const manifestEntry = manifest?.files?.find(f => f.path === clean);
+
         if (isTextFile(clean)) {
           const content = await entry.async('string');
-          newFiles.push({ path: clean, content, type: 'text', createdAt: Date.now() });
+          newFiles.push({ path: clean, content, type: 'text', createdAt: manifestEntry?.createdAt || Date.now() });
         } else {
           const content = await entry.async('base64');
-          newFiles.push({ path: clean, content, type: 'binary', createdAt: Date.now() });
+          newFiles.push({ path: clean, content, type: 'binary', createdAt: manifestEntry?.createdAt || Date.now() });
         }
       }
 
-      if (newFiles.length === 0) { toast.error('No files found in ZIP'); return; }
+      if (newFiles.length === 0) { toast.error('No files found in archive'); return; }
 
       await storage.bulkSave(newFiles);
       const allFiles = await storage.getAllFiles();
@@ -829,25 +885,121 @@ export default function WorkspacePage() {
       toast.success(`Imported ${newFiles.length} files`);
     } catch (err) {
       console.error('Import failed:', err);
-      toast.error('Failed to import ZIP');
+      toast.error('Failed to import archive');
     }
   }, [openFile]);
 
-  const handleExportZip = useCallback(async () => {
+  const handleImportFiles = useCallback(async (fileList: FileList, targetFolder = '') => {
+    try {
+      const newFiles: { path: string; content: string; type: string; createdAt: number }[] = [];
+      const fileArray = Array.from(fileList);
+      const prefix = targetFolder ? (targetFolder.endsWith('/') ? targetFolder : targetFolder + '/') : '';
+
+      for (const file of fileArray) {
+        // If it's a zip/enclave, delegate to zip handler
+        if (file.name.endsWith('.zip') || file.name.endsWith('.enclave')) {
+          await handleImportZip(file);
+          continue;
+        }
+
+        const filePath = prefix + file.name;
+
+        if (isTextFile(file.name)) {
+          const content = await file.text();
+          newFiles.push({ path: filePath, content, type: 'text', createdAt: Date.now() });
+        } else {
+          const buffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+          const content = btoa(binary);
+          newFiles.push({ path: filePath, content, type: 'binary', createdAt: Date.now() });
+        }
+      }
+
+      if (newFiles.length > 0) {
+        await storage.bulkSave(newFiles);
+        const allFiles = await storage.getAllFiles();
+        setFiles(allFiles);
+        if (targetFolder) setExpandedFolders(prev => new Set([...prev, targetFolder]));
+        const firstText = newFiles.find(f => f.type === 'text');
+        if (firstText) openFile(firstText.path);
+        toast.success(`Imported ${newFiles.length} file${newFiles.length > 1 ? 's' : ''}${targetFolder ? ` into ${targetFolder}` : ''}`);
+      }
+    } catch (err) {
+      console.error('File import failed:', err);
+      toast.error('Failed to import files');
+    }
+  }, [handleImportZip, openFile]);
+
+  const handleImportFolder = useCallback(async (fileList: FileList) => {
+    try {
+      const newFiles: { path: string; content: string; type: string; createdAt: number }[] = [];
+      const fileArray = Array.from(fileList);
+
+      for (const file of fileArray) {
+        const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+        if (relativePath.includes('.DS_Store') || relativePath.includes('__MACOSX')) continue;
+
+        if (isTextFile(file.name)) {
+          const content = await file.text();
+          newFiles.push({ path: relativePath, content, type: 'text', createdAt: Date.now() });
+        } else {
+          const buffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+          const content = btoa(binary);
+          newFiles.push({ path: relativePath, content, type: 'binary', createdAt: Date.now() });
+        }
+      }
+
+      if (newFiles.length > 0) {
+        await storage.bulkSave(newFiles);
+        const allFiles = await storage.getAllFiles();
+        setFiles(allFiles);
+
+        const rootFolders = new Set(newFiles.map(f => f.path.split('/')[0]).filter(p => newFiles.some(f => f.path.startsWith(p + '/'))));
+        setExpandedFolders(prev => new Set([...prev, ...rootFolders]));
+
+        const firstText = newFiles.find(f => f.type === 'text');
+        if (firstText) openFile(firstText.path);
+        toast.success(`Imported folder with ${newFiles.length} files`);
+      }
+    } catch (err) {
+      console.error('Folder import failed:', err);
+      toast.error('Failed to import folder');
+    }
+  }, [openFile]);
+
+  const handleExportEnclave = useCallback(async () => {
     try {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
       const allFiles = await storage.getAllFiles();
 
+      const manifestFiles: { path: string; type: string; createdAt: number; updatedAt?: number }[] = [];
+
       for (const file of allFiles) {
         if (file.type === 'folder') continue;
         if (file.type === 'binary') zip.file(file.path, file.content, { base64: true });
         else zip.file(file.path, file.content || '');
+        manifestFiles.push({ path: file.path, type: file.type, createdAt: file.createdAt, updatedAt: file.updatedAt });
       }
 
+      // Add manifest.json
+      const manifest = {
+        version: '1.0',
+        app: 'portable-workspace',
+        createdAt: new Date().toISOString(),
+        fileCount: manifestFiles.length,
+        files: manifestFiles,
+      };
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+
       const blob = await zip.generateAsync({ type: 'blob' });
-      downloadBlob(blob, 'workspace.zip');
-      toast.success('Workspace exported as ZIP');
+      downloadBlob(blob, 'workspace.enclave');
+      toast.success('Workspace exported as .enclave');
     } catch (err) {
       toast.error('Export failed');
     }
@@ -874,24 +1026,11 @@ export default function WorkspacePage() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const items = e.dataTransfer?.files;
-    if (items?.length > 0) {
-      const file = items[0];
-      if (file.name.endsWith('.zip')) {
-        handleImportZip(file);
-      } else if (isTextFile(file.name)) {
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-          await storage.saveFile({ path: file.name, content: ev.target?.result as string, type: 'text', createdAt: Date.now() });
-          const allFiles = await storage.getAllFiles();
-          setFiles(allFiles);
-          openFile(file.name);
-          toast.success(`Imported ${file.name}`);
-        };
-        reader.readAsText(file);
-      }
+    const fileList = e.dataTransfer?.files;
+    if (fileList && fileList.length > 0) {
+      handleImportFiles(fileList);
     }
-  }, [handleImportZip, openFile]);
+  }, [handleImportFiles]);
 
   // ===== KEYBOARD SHORTCUTS ON TEXTAREA =====
   const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1188,12 +1327,23 @@ export default function WorkspacePage() {
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => {
                   if (isMobile) setMobileSidebarOpen(false);
-                  setTimeout(() => fileInputRef.current?.click(), 150);
+                  setTimeout(() => filesInputRef.current?.click(), 150);
                 }}>
                   <Upload className="w-3.5 h-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">Import ZIP</TooltipContent>
+              <TooltipContent side="bottom" className="text-xs">Import Files</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => {
+                  if (isMobile) setMobileSidebarOpen(false);
+                  setTimeout(() => folderInputRef.current?.click(), 150);
+                }}>
+                  <FolderUp className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">Import Folder</TooltipContent>
             </Tooltip>
             {isMobile && (
               <Tooltip>
@@ -1259,7 +1409,7 @@ export default function WorkspacePage() {
           {filteredTree.children.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-muted-foreground">
               <p className="font-medium">No files yet</p>
-              <p className="mt-1 opacity-70">Create a file or import a ZIP</p>
+              <p className="mt-1 opacity-70">Create a file or import files</p>
             </div>
           ) : (
             filteredTree.children.map(node => (
@@ -1276,6 +1426,7 @@ export default function WorkspacePage() {
                 onRenameItem={(p, d) => openDialog('rename', p, d)}
                 onNewFileInFolder={(p) => openDialog('newFile', p)}
                 onTogglePin={togglePin}
+                onImportIntoFolder={(folderPath, files) => handleImportFiles(files, folderPath)}
               />
             ))
           )}
@@ -1283,9 +1434,9 @@ export default function WorkspacePage() {
       </ScrollArea>
 
       <div className="border-t border-border p-2 space-y-0.5">
-        <Button variant="ghost" size="sm" className="w-full justify-start h-7 text-xs gap-2" onClick={handleExportZip}>
+        <Button variant="ghost" size="sm" className="w-full justify-start h-7 text-xs gap-2" onClick={handleExportEnclave}>
           <Download className="w-3.5 h-3.5" />
-          Export Workspace (ZIP)
+          Export Enclave
         </Button>
         <Button variant="ghost" size="sm" className="w-full justify-start h-7 text-xs gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => openDialog('clearWorkspace')}>
           <Trash2 className="w-3.5 h-3.5" />
@@ -1318,14 +1469,38 @@ export default function WorkspacePage() {
     >
       <Toaster position="bottom-right" theme="dark" richColors />
 
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
-        accept=".zip"
+        accept=".zip,.enclave"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleImportZip(file);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={filesInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files;
+          if (files && files.length > 0) handleImportFiles(files);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        // @ts-expect-error webkitdirectory is not in the standard typings
+        webkitdirectory="true"
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files;
+          if (files && files.length > 0) handleImportFolder(files);
           e.target.value = '';
         }}
       />
@@ -1405,11 +1580,17 @@ export default function WorkspacePage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-2" /> Import ZIP
+              <DropdownMenuItem onClick={() => filesInputRef.current?.click()}>
+                <Upload className="w-4 h-4 mr-2" /> Import Files
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportZip}>
-                <Download className="w-4 h-4 mr-2" /> Export Workspace
+              <DropdownMenuItem onClick={() => folderInputRef.current?.click()}>
+                <FolderUp className="w-4 h-4 mr-2" /> Import Folder
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                <Package className="w-4 h-4 mr-2" /> Import Enclave (.enclave/.zip)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportEnclave}>
+                <Download className="w-4 h-4 mr-2" /> Export Enclave
               </DropdownMenuItem>
               {activeTabData && (
                 <DropdownMenuItem onClick={handleExportFile}>
@@ -1463,7 +1644,7 @@ export default function WorkspacePage() {
         )}
 
         {/* Editor Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {showEmptyState ? (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center space-y-6 max-w-md">
@@ -1477,123 +1658,197 @@ export default function WorkspacePage() {
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button onClick={() => fileInputRef.current?.click()} className="gap-2" size="lg">
-                    <Upload className="w-4 h-4" /> Import ZIP
+                  <Button onClick={() => filesInputRef.current?.click()} className="gap-2" size="lg">
+                    <Upload className="w-4 h-4" /> Import Files
                   </Button>
                   <Button variant="outline" onClick={() => openDialog('newFile')} className="gap-2" size="lg">
                     <FilePlus className="w-4 h-4" /> New File
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Drag & drop a ZIP file anywhere to import</p>
+                <p className="text-xs text-muted-foreground">Drag & drop files anywhere to import</p>
               </div>
             </div>
-          ) : activeTabData ? (
-            <>
-              <MarkdownToolbar
-                textareaRef={textareaRef}
-                content={activeTabData.content}
-                onContentChange={updateContent}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                isMobile={isMobile}
-              />
+          ) : activeTabData ? (() => {
+            // Determine which editor to use based on file extension
+            const ext = (activeTab || '').split('.').pop()?.toLowerCase() || '';
+            const isMarkdownFile = ['md', 'markdown', 'mdx', 'mdown', 'mkd'].includes(ext);
+            const isCanvasFile = ext === 'canvas';
+            const isBinaryFile = activeTabData.type === 'binary';
 
-              {/* Find & Replace Bar */}
-              {findReplaceOpen && (
-                <div className="findbar-enter border-b border-border bg-card/60 backdrop-blur px-3 py-2 flex items-center gap-2 flex-wrap" data-no-print>
-                  <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
-                    <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                    <Input
-                      ref={findInputRef}
-                      placeholder="Find..."
-                      value={findText}
-                      onChange={(e) => setFindText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleFind(); }}
-                      className="h-7 text-xs flex-1"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
-                    <Replace className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                    <Input
-                      placeholder="Replace..."
-                      value={replaceText}
-                      onChange={(e) => setReplaceText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleReplaceOne(); }}
-                      className="h-7 text-xs flex-1"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleFind}>
-                      Find
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReplaceOne}>
-                      Replace
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReplaceAll}>
-                      All
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setFindReplaceOpen(false)}>
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )}
+            // Auto-set editor mode based on file type
+            const effectiveMode = isBinaryFile ? 'markdown' : isCanvasFile ? 'canvas' : isMarkdownFile ? editorMode : editorMode;
 
-              <div className="flex-1 overflow-hidden">
-                {activeTabData.type === 'binary' ? (
-                  <div className="flex-1 flex items-center justify-center h-full">
-                    <div className="text-center space-y-2 text-muted-foreground">
-                      <File className="w-12 h-12 mx-auto opacity-40" />
-                      <p className="text-sm font-medium">Binary File</p>
-                      <p className="text-xs">This file cannot be edited in the browser</p>
+            return (
+              <>
+                {/* Editor Mode Toggle Bar */}
+                {!isBinaryFile && (
+                  <div className="flex items-center border-b border-border bg-card/30 px-2 py-1 gap-1 flex-shrink-0" data-toolbar>
+                    {!isCanvasFile && (
+                      <>
+                        <TooltipProvider delayDuration={300}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant={effectiveMode === 'block' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                className="h-7 px-2.5 text-xs gap-1"
+                                onClick={() => setEditorMode('block')}
+                              >
+                                <FileText className="w-3 h-3" />
+                                <span className="hidden sm:inline">Block</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="text-xs">Notion-like block editor</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant={effectiveMode === 'markdown' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                className="h-7 px-2.5 text-xs gap-1"
+                                onClick={() => setEditorMode('markdown')}
+                              >
+                                <FileCode className="w-3 h-3" />
+                                <span className="hidden sm:inline">Markdown</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="text-xs">Raw markdown editor</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        {/* Show markdown toolbar only in markdown mode */}
+                        {effectiveMode === 'markdown' && (
+                          <div className="flex-1">
+                            <MarkdownToolbar
+                              textareaRef={textareaRef}
+                              content={activeTabData.content}
+                              onContentChange={updateContent}
+                              viewMode={viewMode}
+                              onViewModeChange={setViewMode}
+                              isMobile={isMobile}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {isCanvasFile && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Brush className="w-3.5 h-3.5" />
+                        <span>Canvas</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Find & Replace Bar */}
+                {findReplaceOpen && effectiveMode === 'markdown' && (
+                  <div className="findbar-enter border-b border-border bg-card/60 backdrop-blur px-3 py-2 flex items-center gap-2 flex-wrap" data-no-print>
+                    <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                      <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      <Input
+                        ref={findInputRef}
+                        placeholder="Find..."
+                        value={findText}
+                        onChange={(e) => setFindText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleFind(); }}
+                        className="h-7 text-xs flex-1"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                      <Replace className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      <Input
+                        placeholder="Replace..."
+                        value={replaceText}
+                        onChange={(e) => setReplaceText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleReplaceOne(); }}
+                        className="h-7 text-xs flex-1"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleFind}>
+                        Find
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReplaceOne}>
+                        Replace
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReplaceAll}>
+                        All
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setFindReplaceOpen(false)}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
                   </div>
-                ) : viewMode === 'edit' ? (
-                  <textarea
-                    ref={textareaRef}
-                    className="editor-textarea w-full h-full p-4 bg-background text-foreground font-mono text-sm resize-none outline-none leading-relaxed"
-                    value={activeTabData.content}
-                    onChange={(e) => updateContent(e.target.value)}
-                    onKeyDown={handleEditorKeyDown}
-                    spellCheck={false}
-                    placeholder="Start typing..."
-                  />
-                ) : viewMode === 'preview' ? (
-                  <ScrollArea className="h-full">
-                    <div className="p-6 max-w-3xl mx-auto">
-                      <div className="markdown-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeTabData.content}</ReactMarkdown>
+                )}
+
+                <div className="flex-1 overflow-hidden min-h-0">
+                  {isBinaryFile ? (
+                    <div className="flex-1 flex items-center justify-center h-full">
+                      <div className="text-center space-y-2 text-muted-foreground">
+                        <File className="w-12 h-12 mx-auto opacity-40" />
+                        <p className="text-sm font-medium">Binary File</p>
+                        <p className="text-xs">This file cannot be edited in the browser</p>
                       </div>
                     </div>
-                  </ScrollArea>
-                ) : (
-                  <PanelGroup direction="horizontal">
-                    <Panel defaultSize={50} minSize={25}>
-                      <textarea
-                        ref={textareaRef}
-                        className="editor-textarea w-full h-full p-4 bg-background text-foreground font-mono text-sm resize-none outline-none leading-relaxed"
-                        value={activeTabData.content}
-                        onChange={(e) => updateContent(e.target.value)}
-                        onKeyDown={handleEditorKeyDown}
-                        spellCheck={false}
-                        placeholder="Start typing..."
-                      />
-                    </Panel>
-                    <PanelResizeHandle className="w-1.5 bg-border/50 hover:bg-primary/40 transition-colors cursor-col-resize resize-handle" />
-                    <Panel defaultSize={50} minSize={20}>
-                      <ScrollArea className="h-full">
-                        <div className="p-6">
-                          <div className="markdown-body">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeTabData.content}</ReactMarkdown>
-                          </div>
+                  ) : isCanvasFile ? (
+                    <CanvasEditor
+                      content={activeTabData.content}
+                      onContentChange={updateContent}
+                    />
+                  ) : effectiveMode === 'block' ? (
+                    <BlockEditor
+                      key={activeTab}
+                      content={activeTabData.content}
+                      onContentChange={updateContent}
+                    />
+                  ) : viewMode === 'edit' ? (
+                    <textarea
+                      ref={textareaRef}
+                      className="editor-textarea w-full h-full p-4 bg-background text-foreground font-mono text-sm resize-none outline-none leading-relaxed"
+                      value={activeTabData.content}
+                      onChange={(e) => updateContent(e.target.value)}
+                      onKeyDown={handleEditorKeyDown}
+                      spellCheck={false}
+                      placeholder="Start typing..."
+                    />
+                  ) : viewMode === 'preview' ? (
+                    <ScrollArea className="h-full">
+                      <div className="p-6 max-w-3xl mx-auto">
+                        <div className="markdown-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeTabData.content}</ReactMarkdown>
                         </div>
-                      </ScrollArea>
-                    </Panel>
-                  </PanelGroup>
-                )}
-              </div>
-            </>
-          ) : (
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <PanelGroup direction="horizontal">
+                      <Panel defaultSize={50} minSize={25}>
+                        <textarea
+                          ref={textareaRef}
+                          className="editor-textarea w-full h-full p-4 bg-background text-foreground font-mono text-sm resize-none outline-none leading-relaxed"
+                          value={activeTabData.content}
+                          onChange={(e) => updateContent(e.target.value)}
+                          onKeyDown={handleEditorKeyDown}
+                          spellCheck={false}
+                          placeholder="Start typing..."
+                        />
+                      </Panel>
+                      <PanelResizeHandle className="w-1.5 bg-border/50 hover:bg-primary/40 transition-colors cursor-col-resize resize-handle" />
+                      <Panel defaultSize={50} minSize={20}>
+                        <ScrollArea className="h-full">
+                          <div className="p-6">
+                            <div className="markdown-body">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeTabData.content}</ReactMarkdown>
+                            </div>
+                          </div>
+                        </ScrollArea>
+                      </Panel>
+                    </PanelGroup>
+                  )}
+                </div>
+              </>
+            );
+          })() : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <div className="text-center space-y-3">
                 <FileText className="w-14 h-14 mx-auto opacity-20" />
