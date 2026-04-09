@@ -1698,7 +1698,7 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
               <>
                 {/* Editor Mode Toggle Bar */}
                 {!isBinaryFile && (
-                  <div className="flex items-center border-b border-border bg-card/30 px-2 py-1 gap-1 flex-shrink-0" data-toolbar>
+                  <div className="flex items-center border-b border-border bg-card/30 px-2 py-1 gap-1 flex-shrink-0 overflow-scroll" data-toolbar>
                     {!isCanvasFile && (
                       <>
                         <TooltipProvider delayDuration={300}>

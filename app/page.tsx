@@ -397,7 +397,7 @@ const handleSaveEnclave = async (data: {
 {/* SETUP WIZARD */}
 {appState === 'setup' && (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
-    <div className="max-w-md w-full bg-neutral-900/80 border border-white/10 p-8 rounded-3xl shadow-2xl backdrop-blur-2xl transition-all duration-500 ease-out animate-in zoom-in-95">
+    <div className="md:w-[60%] h-50 bg-neutral-900/80 border border-white/10 p-8 rounded-3xl shadow-2xl backdrop-blur-2xl transition-all duration-500 ease-out animate-in zoom-in-95">
       
       {/* HEADER */}
       <div className="flex items-center gap-3 mb-6">
@@ -409,14 +409,15 @@ const handleSaveEnclave = async (data: {
 
       {/* STEP 1 */}
       {setupStep === 1 && (
-        <div className="space-y-6 animate-in slide-in-from-right-4">
+        <div className="space-y-6 md:flex md:gap-8 animate-in slide-in-from-right-4">
           
           <Illustration 
             src="/illustrations/undraw_morning-plans_5vln.svg"
             className="h-40 mb-2 opacity-90"
           />
+            <div className='flex flex-col gap-2 p-2'>
 
-          <p className="text-neutral-400 text-sm leading-relaxed">
+          <p className="text-neutral-400 text-sm md:text-md leading-relaxed">
             Velä is designed as a standalone environment that lives entirely within your device. There are no servers, no trackers, and no external connections. Your thoughts, files, and interactions are completely safe, secure, and purely local.
           </p>
 
@@ -426,19 +427,23 @@ const handleSaveEnclave = async (data: {
           >
             Continue <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
+            </div>
         </div>
       )}
 
       {/* STEP 2 */}
       {setupStep === 2 && (
-        <div className="space-y-6 animate-in slide-in-from-right-4">
+        <div className="space-y-6 md:flex md:gap-8 animate-in slide-in-from-right-4">
           
           <Illustration 
             src="/illustrations/undraw_control-panel_s0j2.svg"
             className="h-40 mb-2 opacity-90"
           />
 
-          <p className="text-neutral-400 text-sm leading-relaxed">
+          <div className='flex flex-col gap-2 p-2'>
+
+
+          <p className="text-neutral-400 text-sm md:text-md leading-relaxed">
             Within Velä, you isolate your worlds using Enclaves. An Enclave is a creative space tailored to a specific purpose. You could maintain one Enclave for writing code, and an entirely separate one for journaling. Data never crosses between Enclaves unless explicitly commanded.
           </p>
 
@@ -457,79 +462,98 @@ const handleSaveEnclave = async (data: {
             >
               Continue <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
+                        
+          </div>
           </div>
         </div>
       )}
 
       {/* STEP 3 */}
-      {setupStep === 3 && (
-        <div className="space-y-6 animate-in slide-in-from-right-4">
-          
-          <Illustration 
-            src="/illustrations/undraw_authentication_1evl.svg"
-            className="h-40 mb-2 opacity-90"
+{setupStep === 3 && (
+  <div className="space-y-6 animate-in slide-in-from-right-4">
+
+    {/* Grid wrapper — single col on mobile, two cols on sm+ */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+      {/* LEFT: Illustration + alias card */}
+      <div className="flex flex-col gap-4">
+        <Illustration 
+          src="/illustrations/undraw_authentication_1evl.svg"
+          className="h-40 opacity-90"
+        />
+
+        <div className="bg-black/50 p-4 rounded-xl border border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <User className="w-5 h-5 text-indigo-400" />
+            <span className="font-semibold text-lg text-white">{generatedUser}</span>
+          </div>
+          <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold">Local Alias</span>
+        </div>
+      </div>
+
+      {/* RIGHT: Passphrase + Recovery key */}
+      <div className="flex flex-col gap-4">
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-neutral-300 flex justify-between items-center">
+            <span>Master Passphrase</span>
+            <span className="text-[10px] text-neutral-500 font-mono">Secures your universe</span>
+          </label>
+
+          <Input
+            type="password"
+            autoFocus
+            placeholder="Min 6 characters recommended"
+            value={passphrase}
+            onChange={(e) => setPassphrase(e.target.value)}
+            className="bg-black/50 border-white/10 h-12 text-base focus-visible:ring-indigo-500 rounded-xl"
           />
+        </div>
 
-          <div className="bg-black/50 p-4 rounded-xl border border-white/10 flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <User className="w-5 h-5 text-indigo-400" />
-              <span className="font-semibold text-lg text-white">{generatedUser}</span>
-            </div>
-            <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold">Local Alias</span>
+        <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl space-y-2">
+          <div className="flex items-center gap-2 text-amber-400">
+            <ShieldCheck className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Recovery Key</span>
           </div>
-
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-neutral-300 flex justify-between items-center">
-              <span>Master Passphrase</span>
-              <span className="text-[10px] text-neutral-500 font-mono">Secures your universe</span>
-            </label>
-
-            <Input
-              type="password"
-              autoFocus
-              placeholder="Min 6 characters recommended"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              className="bg-black/50 border-white/10 h-12 text-base focus-visible:ring-indigo-500 rounded-xl"
-            />
-          </div>
-
-          <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl space-y-2">
-            <div className="flex items-center gap-2 text-amber-400">
-              <ShieldCheck className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Recovery Key</span>
+          <p className="text-[11px] text-neutral-400 leading-tight">
+            If you forget your passphrase, this is the{" "}
+            <span className="text-amber-200/80 font-medium whitespace-nowrap">ONLY WAY</span>{" "}
+            to regain access:
+          </p>
+          <div
+            className="bg-black/60 p-4 rounded-xl border border-white/10 font-mono text-center tracking-widest text-white select-none cursor-pointer group relative active:scale-[0.98] transition-transform"
+            onClick={() => copyToClipboard(generatedRecoveryCode)}
+          >
+            {generatedRecoveryCode}
+            <div className="absolute inset-0 bg-white/[0.03] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl pointer-events-none">
+              <span className="text-[10px] tracking-normal font-sans text-neutral-400 bg-neutral-900/80 px-2 py-1 rounded-md border border-white/10">
+                Click to copy
+              </span>
             </div>
-            <p className="text-[11px] text-neutral-400 leading-tight">
-              If you forget your passphrase, this is the <span className="text-amber-200/80 font-medium whitespace-nowrap">ONLY WAY</span> to regain access:
-            </p>
-            <div className="bg-black/60 p-4 rounded-xl border border-white/10 font-mono text-center tracking-widest text-white select-none cursor-pointer group relative active:scale-[0.98] transition-transform"
-                 onClick={() => copyToClipboard(generatedRecoveryCode)}>
-              {generatedRecoveryCode}
-              <div className="absolute inset-0 bg-white/[0.03] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl pointer-events-none">
-                <span className="text-[10px] tracking-normal font-sans text-neutral-400 bg-neutral-900/80 px-2 py-1 rounded-md border border-white/10">Click to copy</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <Button 
-              variant="ghost" 
-              className="h-12 rounded-xl border border-white/10 w-24 hover:bg-white/5" 
-              onClick={() => setSetupStep(2)}
-            >
-              Back
-            </Button>
-
-            <Button 
-              className="flex-1 h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white border-0"
-              onClick={handleSetupComplete}
-              disabled={!passphrase.trim()}
-            >
-              Finish Setup <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
           </div>
         </div>
-      )}
+      </div>
+    </div>
+
+    {/* Buttons — always full width below the grid */}
+    <div className="flex gap-3 pt-2">
+      <Button 
+        variant="ghost" 
+        className="h-12 rounded-xl border border-white/10 w-24 hover:bg-white/5" 
+        onClick={() => setSetupStep(2)}
+      >
+        Back
+      </Button>
+
+      <Button 
+        className="flex-1 h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white border-0"
+        onClick={handleSetupComplete}
+        disabled={!passphrase.trim()}
+      >
+        Finish Setup <ArrowRight className="w-4 h-4 ml-2" />
+      </Button>
+    </div>
+  </div>
+)}
 
       {/* BRANDING FOOTER */}
       {(appState === 'setup') && (
