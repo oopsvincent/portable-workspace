@@ -1,11 +1,25 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import * as storage from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Sparkles, ArrowRight, Folder, Code, Book, Compass, Cpu, Palette, Briefcase, Plus, Loader2, ShieldCheck, User, Lock, Copy, GripVertical } from 'lucide-react';
+import {
+  Book01Icon, CodeIcon, CompassIcon, CpuIcon, PaintBoardIcon,
+  Briefcase01Icon, PencilEdit01Icon, Folder01Icon, Chemistry03Icon,
+  GlobeIcon, MusicNote01Icon, Camera01Icon, HeadphonesIcon, RocketIcon,
+  StarIcon, FlashlightIcon, MoonIcon, Sun01Icon, Leaf01Icon, MountainIcon,
+  ArtificialIntelligence01Icon, BrainIcon, LaptopIcon, DatabaseIcon,
+  ComputerTerminal01Icon, GitBranchIcon, PuzzleIcon, CrownIcon, DiamondIcon,
+  Key01Icon, LockIcon, Shield01Icon, ZapIcon, FireIcon, Plant01Icon,
+  Coffee01Icon, Telescope01Icon, Atom01Icon, DnaIcon, MicroscopeIcon,
+  BookOpen01Icon, PenTool01Icon, Layers01Icon, GemIcon, SparklesIcon,
+  AnchorIcon, FeatherIcon, Clock01Icon, MapPinIcon, Compass01Icon,
+} from 'hugeicons-react';
+import { toast } from 'sonner';
+import Illustration from '@/components/illustration';
 import {
   Dialog,
   DialogContent,
@@ -13,2060 +27,824 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { Separator } from '@/components/ui/separator';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Toaster, toast } from 'sonner';
-import type { LucideIcon } from 'lucide-react';
-import {
-  Menu, X, ChevronRight, ChevronDown,
-  FileText, File, Folder, FolderOpen, FolderUp,
-  FilePlus, FolderPlus, Trash2, Pencil, MoreHorizontal,
-  Bold, Italic, Heading1, Heading2, Heading3,
-  List, ListOrdered, Code, Quote, Link2, Minus,
-  Download, Upload, Eye, ImageIcon,
-  Search, PanelLeftClose, PanelLeft,
-  CheckCircle, Loader2, FileDown, Package,
-  Share2, History, Clock, RotateCcw,
-  Sun, Moon, Printer, Replace, Star, StarOff,
-  Brush, FileCode,
-} from 'lucide-react';
-import * as storage from '@/lib/storage';
-import * as vim from '@/lib/vim';
-import LZString from 'lz-string';
-import { useTheme } from 'next-themes';
-import dynamic from 'next/dynamic';
+} from "@/components/ui/dialog";
+import EnclaveDialog from '@/components/enclave-onboarding';
 
-const BlockEditor = dynamic(() => import('@/components/editors/block-editor'), { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div> });
-const CanvasEditor = dynamic(() => import('@/components/editors/canvas-editor'), { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div> });
+const AVATARS = [
+  // Writing & Reading
+  { id: 'Book',       icon: Book01Icon,                   color: 'text-orange-400',   bg: 'bg-orange-400/10' },
+  { id: 'BookOpen',   icon: BookOpen01Icon,                color: 'text-amber-400',    bg: 'bg-amber-400/10' },
+  { id: 'PenTool',    icon: PenTool01Icon,                 color: 'text-yellow-400',   bg: 'bg-yellow-400/10' },
+  { id: 'Pencil',     icon: PencilEdit01Icon,              color: 'text-lime-400',     bg: 'bg-lime-400/10' },
+  { id: 'Feather',    icon: FeatherIcon,                   color: 'text-green-400',    bg: 'bg-green-400/10' },
 
-// ===== TYPES =====
+  // Code & Tech
+  { id: 'Code',       icon: CodeIcon,                     color: 'text-indigo-400',   bg: 'bg-indigo-400/10' },
+  { id: 'Terminal',   icon: ComputerTerminal01Icon,        color: 'text-violet-400',   bg: 'bg-violet-400/10' },
+  { id: 'Cpu',        icon: CpuIcon,                      color: 'text-cyan-400',     bg: 'bg-cyan-400/10' },
+  { id: 'Laptop',     icon: LaptopIcon,                   color: 'text-sky-400',      bg: 'bg-sky-400/10' },
+  { id: 'Database',   icon: DatabaseIcon,                  color: 'text-blue-400',     bg: 'bg-blue-400/10' },
+  { id: 'GitBranch',  icon: GitBranchIcon,                 color: 'text-purple-400',   bg: 'bg-purple-400/10' },
 
-interface TreeNode {
-  name: string;
-  path: string;
-  children: TreeNode[];
-  isDir: boolean;
-  type?: string;
+  // Art & Creativity
+  { id: 'Palette',    icon: PaintBoardIcon,                color: 'text-pink-400',     bg: 'bg-pink-400/10' },
+  { id: 'Camera',     icon: Camera01Icon,                  color: 'text-rose-400',     bg: 'bg-rose-400/10' },
+  { id: 'Layers',     icon: Layers01Icon,                  color: 'text-fuchsia-400',  bg: 'bg-fuchsia-400/10' },
+  { id: 'Music',      icon: MusicNote01Icon,               color: 'text-red-400',      bg: 'bg-red-400/10' },
+  { id: 'Headphones', icon: HeadphonesIcon,                color: 'text-orange-300',   bg: 'bg-orange-300/10' },
+
+  // Work & Organization
+  { id: 'Briefcase',  icon: Briefcase01Icon,               color: 'text-amber-400',    bg: 'bg-amber-400/10' },
+  { id: 'Folder',     icon: Folder01Icon,                  color: 'text-yellow-300',   bg: 'bg-yellow-300/10' },
+  { id: 'Compass',    icon: CompassIcon,                   color: 'text-emerald-400',  bg: 'bg-emerald-400/10' },
+  { id: 'Puzzle',     icon: PuzzleIcon,                    color: 'text-teal-400',     bg: 'bg-teal-400/10' },
+  { id: 'Clock',      icon: Clock01Icon,                   color: 'text-slate-400',    bg: 'bg-slate-400/10' },
+
+  // Science & Research
+  { id: 'Chemistry',  icon: Chemistry03Icon,               color: 'text-green-400',    bg: 'bg-green-400/10' },
+  { id: 'Atom',       icon: Atom01Icon,                    color: 'text-blue-300',     bg: 'bg-blue-300/10' },
+  { id: 'Dna',        icon: DnaIcon,                       color: 'text-emerald-300',  bg: 'bg-emerald-300/10' },
+  { id: 'Microscope', icon: MicroscopeIcon,                color: 'text-cyan-300',     bg: 'bg-cyan-300/10' },
+  { id: 'Telescope',  icon: Telescope01Icon,               color: 'text-indigo-300',   bg: 'bg-indigo-300/10' },
+
+  // AI & Intelligence
+  { id: 'AI',         icon: ArtificialIntelligence01Icon,  color: 'text-violet-400',   bg: 'bg-violet-400/10' },
+  { id: 'Brain',      icon: BrainIcon,                     color: 'text-purple-400',   bg: 'bg-purple-400/10' },
+
+  // Nature & World
+  { id: 'Globe',      icon: GlobeIcon,                     color: 'text-sky-400',      bg: 'bg-sky-400/10' },
+  { id: 'Leaf',       icon: Leaf01Icon,                    color: 'text-green-500',    bg: 'bg-green-500/10' },
+  { id: 'Mountain',   icon: MountainIcon,                  color: 'text-stone-400',    bg: 'bg-stone-400/10' },
+  { id: 'Plant',      icon: Plant01Icon,                   color: 'text-lime-500',     bg: 'bg-lime-500/10' },
+
+  // Lifestyle
+  { id: 'Coffee',     icon: Coffee01Icon,                  color: 'text-amber-600',    bg: 'bg-amber-600/10' },
+
+  // Achievement & Identity
+  { id: 'Crown',      icon: CrownIcon,                     color: 'text-yellow-400',   bg: 'bg-yellow-400/10' },
+  { id: 'Diamond',    icon: DiamondIcon,                   color: 'text-cyan-400',     bg: 'bg-cyan-400/10' },
+  { id: 'Gem',        icon: GemIcon,                       color: 'text-rose-400',     bg: 'bg-rose-400/10' },
+  { id: 'Star',       icon: StarIcon,                      color: 'text-yellow-300',   bg: 'bg-yellow-300/10' },
+  { id: 'Sparkles',   icon: SparklesIcon,                  color: 'text-amber-300',    bg: 'bg-amber-300/10' },
+
+  // Security & Privacy
+  { id: 'Key',        icon: Key01Icon,                     color: 'text-yellow-500',   bg: 'bg-yellow-500/10' },
+  { id: 'Lock',       icon: LockIcon,                      color: 'text-slate-400',    bg: 'bg-slate-400/10' },
+  { id: 'Shield',     icon: Shield01Icon,                  color: 'text-blue-500',     bg: 'bg-blue-500/10' },
+
+  // Energy & Action
+  { id: 'Zap',        icon: ZapIcon,                       color: 'text-yellow-400',   bg: 'bg-yellow-400/10' },
+  { id: 'Fire',       icon: FireIcon,                      color: 'text-orange-500',   bg: 'bg-orange-500/10' },
+  { id: 'Rocket',     icon: RocketIcon,                    color: 'text-red-400',      bg: 'bg-red-400/10' },
+  { id: 'Flashlight', icon: FlashlightIcon,                color: 'text-amber-400',    bg: 'bg-amber-400/10' },
+
+  // Time & Place
+  { id: 'Moon',       icon: MoonIcon,                      color: 'text-indigo-300',   bg: 'bg-indigo-300/10' },
+  { id: 'Sun',        icon: Sun01Icon,                     color: 'text-yellow-400',   bg: 'bg-yellow-400/10' },
+  { id: 'MapPin',     icon: MapPinIcon,                    color: 'text-red-400',      bg: 'bg-red-400/10' },
+  { id: 'Anchor',     icon: AnchorIcon,                    color: 'text-teal-500',     bg: 'bg-teal-500/10' },
+  { id: 'Compass2',   icon: Compass01Icon,                 color: 'text-emerald-300',  bg: 'bg-emerald-300/10' },
+];
+
+const ADJECTIVES = ["Silent", "Green", "Bright", "Dark", "Neon", "Crimson", "Azure", "Golden", "Wandering", "Cosmic", "Lunar", "Solar", "Hidden", "Frost", "Electric", "Velvet"];
+const NOUNS = ["Apple", "Avocado", "Phoenix", "Wolf", "River", "Mountain", "Forest", "Ocean", "Nebula", "Comet", "Owl", "Tiger", "Fox", "Panda", "Lotus", "Oak"];
+
+function generateUsername() {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  return `${adj} ${noun}`;
 }
 
-interface TabData {
-  path: string;
-  content: string;
-  savedContent: string;
-  type: string;
-}
-
-interface DialogState {
-  type: 'newFile' | 'newFolder' | 'rename' | 'delete' | 'clearWorkspace' | 'history' | null;
-  path: string;
-  isDir: boolean;
-  value: string;
-}
-
-interface ToolAction {
-  wrap?: { before: string; after: string; placeholder?: string };
-  prefix?: string;
-  insert?: string;
-}
-
-interface ToolItem {
-  icon: LucideIcon;
-  label: string;
-  action: ToolAction;
-}
-
-interface FileTreeNodeProps {
-  node: TreeNode;
-  level?: number;
-  activeTab: string | null;
-  expandedFolders: Set<string>;
-  pinnedFiles: Set<string>;
-  onToggleFolder: (path: string) => void;
-  onOpenFile: (path: string) => void;
-  onDeleteItem: (path: string, isDir: boolean) => void;
-  onRenameItem: (path: string, isDir: boolean) => void;
-  onNewFileInFolder: (path: string) => void;
-  onTogglePin: (path: string) => void;
-  onImportIntoFolder: (path: string, files: FileList) => void;
-}
-
-interface MarkdownToolbarProps {
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
-  content: string;
-  onContentChange: (content: string) => void;
-  viewMode: string;
-  onViewModeChange: (mode: string) => void;
-  isMobile: boolean;
-}
-
-// ===== CONSTANTS =====
-
-const TEXT_EXTENSIONS = new Set([
-  'md', 'txt', 'markdown', 'mdown', 'mkd', 'mdx',
-  'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs',
-  'html', 'htm', 'css', 'scss', 'less', 'sass',
-  'json', 'xml', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf',
-  'py', 'rb', 'go', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'rs', 'swift', 'kt',
-  'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
-  'sql', 'graphql', 'gql',
-  'env', 'gitignore', 'dockerignore', 'editorconfig',
-  'svg', 'csv', 'tsv',
-  'r', 'rmd', 'tex', 'bib',
-  'vue', 'svelte', 'astro',
-  'dockerfile', 'makefile', 'cmake',
-  'log', 'lock',
-]);
-
-function isTextFile(filename: string): boolean {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  const basename = filename.split('/').pop()?.toLowerCase() || '';
-  const specialNames = ['readme', 'license', 'licence', 'makefile', 'dockerfile', 'procfile', '.gitignore', '.env'];
-  if (specialNames.includes(basename)) return true;
-  return TEXT_EXTENSIONS.has(ext);
-}
-
-function getFileIcon(name: string): LucideIcon {
-  const ext = name.split('.').pop()?.toLowerCase() || '';
-  const codeExts = new Set(['js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'java', 'c', 'cpp', 'rs', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh', 'sql']);
-  if (codeExts.has(ext)) return Code;
-  return FileText;
-}
-
-function buildFileTree(files: storage.FileRecord[]): TreeNode {
-  const root: TreeNode = { name: 'root', path: '', children: [], isDir: true };
-  const sorted = [...files].sort((a, b) => a.path.localeCompare(b.path));
-
-  for (const file of sorted) {
-    const parts = file.path.split('/');
-    let current = root;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLast = i === parts.length - 1;
-      const path = parts.slice(0, i + 1).join('/');
-      let child = current.children.find(c => c.name === part && c.path === path);
-
-      if (!child) {
-        child = {
-          name: part,
-          path,
-          children: [],
-          isDir: !isLast || file.type === 'folder',
-          type: isLast ? file.type : 'folder',
-        };
-        current.children.push(child);
-      }
-
-      if (!isLast) {
-        child.isDir = true;
-        child.type = 'folder';
-      }
-      current = child;
-    }
+function generateRecoveryCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 16; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    if (i === 3 || i === 7 || i === 11) result += '-';
   }
+  return result;
+}
 
-  function sortTree(node: TreeNode): void {
-    if (node.children?.length > 0) {
-      node.children.sort((a, b) => {
-        if (a.isDir && !b.isDir) return -1;
-        if (!a.isDir && b.isDir) return 1;
-        return a.name.localeCompare(b.name);
-      });
-      node.children.forEach(sortTree);
-    }
+const copyToClipboard = async (text: string) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard');
+  } catch (err) {
+    toast.error('Failed to copy');
   }
-  sortTree(root);
-  return root;
-}
+};
 
-function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+type AppState = 'booting' | 'setup' | 'login' | 'dashboard';
 
-const WELCOME_CONTENT = `# Welcome to Portable Workspace
+export default function HomePage() {
+  const [appState, setAppState] = useState<AppState>('booting');
+  const [velaUser, setVelaUser] = useState<{ username: string, hash: string } | null>(null);
 
-Your private, browser-based markdown editor and file manager.
+  const [setupStep, setSetupStep] = useState(1);
+  const [generatedUser, setGeneratedUser] = useState('');
+  const [generatedRecoveryCode, setGeneratedRecoveryCode] = useState('');
+  const [passphrase, setPassphrase] = useState('');
 
-## Getting Started
+  const [loginPassphrase, setLoginPassphrase] = useState('');
+  const [loginError, setLoginError] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryInput, setRecoveryInput] = useState('');
 
-- **Import a ZIP** workspace using the upload button in the sidebar
-- **Create a new file** using the + button
-- **Edit in Markdown** with the built-in editor and live preview
-- **Export your work** as a ZIP file anytime
+  const [enclaves, setEnclaves] = useState<storage.EnclaveRecord[]>([]);
+  const [showEnclaveOnboarding, setShowEnclaveOnboarding] = useState(false);
+  const router = useRouter();
 
-## Features
+  const [encStep, setEncStep] = useState(1);
+  const [encName, setEncName] = useState('');
+  const [encPurpose, setEncPurpose] = useState('Workspace');
+  const [encAvatar, setEncAvatar] = useState('Book');
+  const [editingEnclaveId, setEditingEnclaveId] = useState<string | null>(null);
+  const [enclaveToDelete, setEnclaveToDelete] = useState<storage.EnclaveRecord | null>(null);
 
-- **Markdown Editor** with toolbar and live preview
-- **File Manager** with folders and search
-- **Auto-Save** to browser storage (IndexedDB)
-- **Import/Export** ZIP workspaces
-- **100% Private** - all data stays in your browser
-- **Responsive** - works on desktop and mobile
+  const startNewEnclave = () => {
+    setEditingEnclaveId(null);
+    setEncName('');
+    setEncPurpose('Workspace');
+    setEncAvatar('Book');
+    setEncStep(1);
+    setShowEnclaveOnboarding(true);
+  };
 
-## Markdown Examples
+  const [draggedEnclaveId, setDraggedEnclaveId] = useState<string | null>(null);
 
-### Text Formatting
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedEnclaveId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
 
-**Bold text**, *italic text*, ~~strikethrough~~, \`inline code\`
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedEnclaveId || draggedEnclaveId === targetId) return;
 
-### Lists
+    const draggedIdx = enclaves.findIndex(enc => enc.id === draggedEnclaveId);
+    const targetIdx = enclaves.findIndex(enc => enc.id === targetId);
 
-- Unordered item 1
-- Unordered item 2
-  - Nested item
+    const newEnclaves = [...enclaves];
+    const [draggedItem] = newEnclaves.splice(draggedIdx, 1);
+    newEnclaves.splice(targetIdx, 0, draggedItem);
 
-1. Ordered item 1
-2. Ordered item 2
+    // Give them ordered values
+    newEnclaves.forEach((enc, idx) => {
+      enc.order = idx;
+    });
 
-### Code Block
+    setEnclaves(newEnclaves);
+  };
 
-\`\`\`javascript
-function hello() {
-  console.log("Hello, World!");
-}
-\`\`\`
-
-### Blockquote
-
-> This is a blockquote.
-> It can span multiple lines.
-
-### Table
-
-| Feature | Status |
-|---------|--------|
-| Markdown Editor | Done |
-| File Manager | Done |
-| Auto-Save | Done |
-| Import/Export | Done |
-
-### Link
-
-[Visit GitHub](https://github.com)
-
----
-
-*Start editing this file or create a new one to begin!*
-`;
-
-// ===== FILE TREE NODE =====
-function FileTreeNode({ node, level = 0, activeTab, expandedFolders, pinnedFiles, onToggleFolder, onOpenFile, onDeleteItem, onRenameItem, onNewFileInFolder, onTogglePin, onImportIntoFolder }: FileTreeNodeProps) {
-  const isExpanded = expandedFolders.has(node.path);
-  const isActive = activeTab === node.path;
-  const [dragOver, setDragOver] = React.useState(false);
-  const folderInputRef = React.useRef<HTMLInputElement>(null);
-  const IconComponent = node.isDir
-    ? (isExpanded ? FolderOpen : Folder)
-    : getFileIcon(node.name);
-
-  return (
-    <div>
-      {/* Hidden file input for importing into this folder */}
-      {node.isDir && (
-        <input
-          ref={folderInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) {
-              onImportIntoFolder(node.path, e.target.files);
-              e.target.value = '';
-            }
-          }}
-        />
-      )}
-      <div
-        className={`
-          group flex items-center gap-1 px-2 py-1 text-sm cursor-pointer rounded-sm mx-1
-          hover:bg-accent/60 transition-colors
-          ${isActive ? 'bg-accent text-accent-foreground font-medium' : 'text-muted-foreground'}
-          ${dragOver ? 'bg-sky-500/20 ring-1 ring-sky-400/50' : ''}
-        `}
-        style={{ paddingLeft: `${level * 14 + 8}px` }}
-        onClick={() => {
-          if (node.isDir) onToggleFolder(node.path);
-          else onOpenFile(node.path);
-        }}
-        onDragOver={(e) => {
-          if (node.isDir) { e.preventDefault(); e.stopPropagation(); setDragOver(true); }
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          if (node.isDir && e.dataTransfer?.files?.length > 0) {
-            e.preventDefault(); e.stopPropagation(); setDragOver(false);
-            onImportIntoFolder(node.path, e.dataTransfer.files);
-          }
-        }}
-      >
-        {node.isDir ? (
-          <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
-            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-          </span>
-        ) : (
-          <span className="w-4 h-4 flex-shrink-0" />
-        )}
-
-        <IconComponent className={`w-4 h-4 flex-shrink-0 ${node.isDir ? 'text-sky-400' : 'text-slate-400'}`} />
-        <span className="truncate flex-1 text-xs">{node.name}</span>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/80 transition-opacity flex-shrink-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="w-3.5 h-3.5" />
-            </button>
-          </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-            {node.isDir && (
-              <>
-                <DropdownMenuItem onClick={() => onNewFileInFolder(node.path)}>
-                  <FilePlus className="w-4 h-4 mr-2" />
-                  New File Here
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => folderInputRef.current?.click()}>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import Files Here
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            {!node.isDir && (
-              <DropdownMenuItem onClick={() => onTogglePin(node.path)}>
-                {pinnedFiles.has(node.path) ? (
-                  <><StarOff className="w-4 h-4 mr-2" /> Unpin</>
-                ) : (
-                  <><Star className="w-4 h-4 mr-2" /> Pin to Top</>
-                )}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => onRenameItem(node.path, node.isDir)}>
-              <Pencil className="w-4 h-4 mr-2" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => onDeleteItem(node.path, node.isDir)}
-              className="text-red-400 focus:text-red-400"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      {node.isDir && isExpanded && node.children.map(child => (
-        <FileTreeNode
-          key={child.path}
-          node={child}
-          level={level + 1}
-          activeTab={activeTab}
-          expandedFolders={expandedFolders}
-          pinnedFiles={pinnedFiles}
-          onToggleFolder={onToggleFolder}
-          onOpenFile={onOpenFile}
-          onDeleteItem={onDeleteItem}
-          onRenameItem={onRenameItem}
-          onNewFileInFolder={onNewFileInFolder}
-          onTogglePin={onTogglePin}
-          onImportIntoFolder={onImportIntoFolder}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ===== MARKDOWN TOOLBAR =====
-function MarkdownToolbar({ textareaRef, content, onContentChange, viewMode, onViewModeChange, isMobile }: MarkdownToolbarProps) {
-  const applyAction = useCallback((action: ToolAction) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = content || '';
-    const selected = text.substring(start, end);
-    let newText: string | undefined, newStart: number | undefined, newEnd: number | undefined;
-
-    if (action.wrap) {
-      const { before, after, placeholder } = action.wrap;
-      const insert = selected || placeholder || '';
-      newText = text.substring(0, start) + before + insert + after + text.substring(end);
-      newStart = start + before.length;
-      newEnd = newStart + insert.length;
-    } else if (action.prefix) {
-      const lineStart = text.lastIndexOf('\n', start - 1) + 1;
-      const lineEndIdx = text.indexOf('\n', start);
-      const lineEnd = lineEndIdx === -1 ? text.length : lineEndIdx;
-      const line = text.substring(lineStart, lineEnd);
-
-      if (line.startsWith(action.prefix)) {
-        newText = text.substring(0, lineStart) + line.substring(action.prefix.length) + text.substring(lineEnd);
-        newStart = Math.max(lineStart, start - action.prefix.length);
-        newEnd = newStart;
-      } else {
-        newText = text.substring(0, lineStart) + action.prefix + text.substring(lineStart);
-        newStart = start + action.prefix.length;
-        newEnd = end + action.prefix.length;
-      }
-    } else if (action.insert) {
-      newText = text.substring(0, start) + action.insert + text.substring(end);
-      newStart = start + action.insert.length;
-      newEnd = newStart;
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDraggedEnclaveId(null);
+    // Persist new ordering for all
+    for (const enc of enclaves) {
+      await storage.saveEnclave(enc);
     }
+  };
 
-    if (newText !== undefined && newStart !== undefined && newEnd !== undefined) {
-      onContentChange(newText);
-      setTimeout(() => {
-        textarea.focus();
-        textarea.setSelectionRange(newStart, newEnd);
-      }, 10);
+  const handleDuplicateEnclave = async (enclave: storage.EnclaveRecord, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const newId = crypto.randomUUID();
+      const newEnclave: storage.EnclaveRecord = {
+        ...enclave,
+        id: newId,
+        name: `${enclave.name} (Copy)`,
+        createdAt: Date.now(),
+        order: Date.now(),
+      };
+      
+      await storage.saveEnclave(newEnclave);
+      
+      // Duplicate files
+      storage.setActiveEnclave(enclave.id);
+      const existingFiles = await storage.getAllFiles();
+      storage.setActiveEnclave(newId);
+      await storage.bulkSave(existingFiles.map(f => ({ ...f, path: f.path })));
+      
+      setEnclaves(prev => [...prev, newEnclave].sort((a,b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt)));
+      toast.success('Enclave duplicated');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to duplicate enclave');
     }
-  }, [content, onContentChange, textareaRef]);
+  };
 
-  const tools: (ToolItem | 'sep')[] = [
-    { icon: Bold, label: 'Bold (Ctrl+B)', action: { wrap: { before: '**', after: '**', placeholder: 'bold' } } },
-    { icon: Italic, label: 'Italic (Ctrl+I)', action: { wrap: { before: '*', after: '*', placeholder: 'italic' } } },
-    'sep',
-    { icon: Heading1, label: 'Heading 1', action: { prefix: '# ' } },
-    { icon: Heading2, label: 'Heading 2', action: { prefix: '## ' } },
-    { icon: Heading3, label: 'Heading 3', action: { prefix: '### ' } },
-    'sep',
-    { icon: List, label: 'Bullet List', action: { prefix: '- ' } },
-    { icon: ListOrdered, label: 'Numbered List', action: { prefix: '1. ' } },
-    'sep',
-    { icon: Code, label: 'Inline Code', action: { wrap: { before: '`', after: '`', placeholder: 'code' } } },
-    { icon: Quote, label: 'Blockquote', action: { prefix: '> ' } },
-    { icon: Link2, label: 'Link (Ctrl+K)', action: { wrap: { before: '[', after: '](url)', placeholder: 'link text' } } },
-    { icon: Minus, label: 'Horizontal Rule', action: { insert: '\n---\n' } },
-  ];
+  const handleDeleteEnclave = async (id: string) => {
+  try {
+    await storage.deleteEnclave(id); // make sure this exists
+    setEnclaves(prev => prev.filter(e => e.id !== id));
+  } catch (err) {
+    console.error(err);
+  }
+};
 
-  return (
-    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-border bg-card/50 overflow-x-auto flex-shrink-0">
-      <TooltipProvider delayDuration={300}>
-        <div className="flex items-center gap-0.5 mr-auto">
-          {tools.map((tool, i) => {
-            if (tool === 'sep') return <Separator key={i} orientation="vertical" className="h-5 mx-0.5" />;
-            const Icon = tool.icon;
-            return (
-              <Tooltip key={i}>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0" onClick={() => applyAction(tool.action)}>
-                    <Icon className="w-3.5 h-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">{tool.label}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-        </div>
+  const handleEditEnclave = (enc: storage.EnclaveRecord, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingEnclaveId(enc.id);
+    setEncName(enc.name);
+    setEncPurpose(enc.purpose || 'Workspace');
+    setEncAvatar(enc.avatar || 'Book');
+    setEncStep(1);
+    setShowEnclaveOnboarding(true);
+  };
 
-        <Separator orientation="vertical" className="h-5 mx-1" />
-
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={viewMode === 'edit' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 px-2.5 text-xs gap-1"
-                onClick={() => onViewModeChange('edit')}
-              >
-                <Pencil className="w-3 h-3" />
-                <span className="hidden sm:inline">Edit</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs">Editor only</TooltipContent>
-          </Tooltip>
-
-          {!isMobile && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={viewMode === 'split' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-7 px-2.5 text-xs gap-1"
-                  onClick={() => onViewModeChange('split')}
-                >
-                  <PanelLeft className="w-3 h-3" />
-                  <span className="hidden sm:inline">Split</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">Split view</TooltipContent>
-            </Tooltip>
-          )}
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={viewMode === 'preview' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 px-2.5 text-xs gap-1"
-                onClick={() => onViewModeChange('preview')}
-              >
-                <Eye className="w-3 h-3" />
-                <span className="hidden sm:inline">Preview</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs">Preview only</TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
-    </div>
-  );
-}
-
-// ===== MAIN WORKSPACE PAGE =====
-export default function WorkspacePage() {
-  const [files, setFiles] = useState<storage.FileRecord[]>([]);
-  const [openTabs, setOpenTabs] = useState<TabData[]>([]);
-  const [activeTab, setActiveTab] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [viewMode, setViewMode] = useState('split');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState('');
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [dialogState, setDialogState] = useState<DialogState>({ type: null, path: '', isDir: false, value: '' });
-  const [isDragging, setIsDragging] = useState(false);
-  const [vimEnabled, setVimEnabled] = useState(false);
-  const [vimDisplayMode, setVimDisplayMode] = useState<vim.VimMode>('normal');
-  const [historyVersions, setHistoryVersions] = useState<storage.VersionRecord[]>([]);
-  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
-  const [findText, setFindText] = useState('');
-  const [replaceText, setReplaceText] = useState('');
-  const [pinnedFiles, setPinnedFiles] = useState<Set<string>>(new Set());
-
-  const { theme, setTheme } = useTheme();
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const filesInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
-  const lastVersionTimeRef = useRef<number>(0);
-  const findInputRef = useRef<HTMLInputElement>(null);
-  const [editorMode, setEditorMode] = useState<'block' | 'markdown' | 'canvas'>('markdown');
-
-  // ===== COMPUTED =====
-  const activeTabData = useMemo(() => openTabs.find(t => t.path === activeTab), [openTabs, activeTab]);
-  const isDirty = useMemo(() => activeTabData ? activeTabData.content !== activeTabData.savedContent : false, [activeTabData]);
-  const hasAnyDirty = useMemo(() => openTabs.some(t => t.content !== t.savedContent), [openTabs]);
-  const fileTree = useMemo(() => buildFileTree(files), [files]);
-
-  const filteredTree = useMemo(() => {
-    if (!searchQuery) return fileTree;
-    const query = searchQuery.toLowerCase();
-    const matching = files.filter(f => f.path.toLowerCase().includes(query) && f.type !== 'folder');
-    return buildFileTree(matching);
-  }, [fileTree, files, searchQuery]);
-
-  // ===== LOAD FILES =====
   useEffect(() => {
     async function init() {
       try {
-        let allFiles = await storage.getAllFiles();
-        if (allFiles.length === 0) {
-          await storage.saveFile({ path: 'welcome.md', content: WELCOME_CONTENT, type: 'text', createdAt: Date.now() });
-          allFiles = await storage.getAllFiles();
-        }
-        setFiles(allFiles);
+        await storage.migrateLegacyData();
+        const storedUser = localStorage.getItem('vela-user');
+        const isLoggedIn = sessionStorage.getItem('vela-logged-in');
 
-        try {
-          const saved = localStorage.getItem('pw-state');
-          if (saved) {
-            const s = JSON.parse(saved);
-            if (s.openTabPaths?.length > 0) {
-              const tabs: TabData[] = [];
-              for (const p of s.openTabPaths) {
-                const f = allFiles.find(x => x.path === p);
-                if (f && f.type !== 'folder') tabs.push({ path: f.path, content: f.content, savedContent: f.content, type: f.type });
-              }
-              if (tabs.length > 0) {
-                setOpenTabs(tabs);
-                setActiveTab(tabs.some(t => t.path === s.activeTabPath) ? s.activeTabPath : tabs[0].path);
-              }
-            }
-            if (s.expandedFolders) setExpandedFolders(new Set(s.expandedFolders));
-            if (s.sidebarOpen !== undefined) setSidebarOpen(s.sidebarOpen);
-            if (s.viewMode) setViewMode(s.viewMode);
-            if (s.pinnedFiles) setPinnedFiles(new Set(s.pinnedFiles));
+        if (!storedUser) {
+          setGeneratedUser(generateUsername());
+          setGeneratedRecoveryCode(generateRecoveryCode());
+          setAppState('setup');
+        } else {
+          setVelaUser(JSON.parse(storedUser));
+          if (isLoggedIn) {
+            await loadEnclaves();
+            setAppState('dashboard');
+          } else {
+            setAppState('login');
           }
-        } catch (e) { /* ignore */ }
+        }
       } catch (err) {
-        console.error('Failed to load:', err);
-        toast.error('Failed to load workspace');
-      } finally {
-        setLoading(false);
+        console.error(err);
       }
     }
     init();
-
-    // Check for shared content in URL hash
-    try {
-      const hash = window.location.hash;
-      if (hash.startsWith('#shared=')) {
-        const compressed = hash.substring(8);
-        const content = LZString.decompressFromEncodedURIComponent(compressed);
-        if (content) {
-          setOpenTabs(prev => [...prev, { path: '_shared.md', content, savedContent: content, type: 'text' }]);
-          setActiveTab('_shared.md');
-          toast.success('Loaded shared content');
-          // Clean the hash
-          window.history.replaceState(null, '', window.location.pathname);
-        }
-      }
-    } catch { /* ignore */ }
   }, []);
 
-  // ===== PERSIST UI STATE =====
-  useEffect(() => {
-    if (loading) return;
-    try {
-      localStorage.setItem('pw-state', JSON.stringify({
-        openTabPaths: openTabs.map(t => t.path),
-        activeTabPath: activeTab,
-        expandedFolders: [...expandedFolders],
-        sidebarOpen,
-        viewMode,
-        pinnedFiles: [...pinnedFiles],
-      }));
-    } catch (e) { /* ignore */ }
-  }, [openTabs, activeTab, expandedFolders, sidebarOpen, viewMode, loading, pinnedFiles]);
+  const loadEnclaves = async () => {
+    const list = await storage.getEnclaves();
+    setEnclaves(list);
+    if (list.length === 0) setShowEnclaveOnboarding(true);
+  };
 
-  // ===== MOBILE DETECTION =====
-  useEffect(() => {
-    function check() {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (mobile) setViewMode(prev => prev === 'split' ? 'edit' : prev);
-    }
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-
-  // ===== BEFOREUNLOAD =====
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => { if (hasAnyDirty) { e.preventDefault(); e.returnValue = ''; } };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [hasAnyDirty]);
-
-  // ===== AUTO-SAVE =====
-  const autoSave = useCallback(async (path: string, content: string) => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(async () => {
-      setSaving(true);
-      try {
-        const existing = await storage.getFile(path);
-        await storage.saveFile({ path, content, type: existing?.type || 'text', createdAt: existing?.createdAt || Date.now() });
-        setOpenTabs(prev => prev.map(t => t.path === path ? { ...t, savedContent: content } : t));
-        setFiles(prev => prev.map(f => f.path === path ? { ...f, content, updatedAt: Date.now() } : f));
-
-        // Save version snapshot (throttled to 1 per 60s per file)
-        const now = Date.now();
-        if (now - lastVersionTimeRef.current > 60000) {
-          lastVersionTimeRef.current = now;
-          storage.saveVersion(path, content).catch(() => {});
-        }
-      } catch (err) {
-        console.error('Auto-save failed:', err);
-        toast.error('Auto-save failed');
-      } finally {
-        setSaving(false);
-      }
-    }, 600);
-  }, []);
-
-  // ===== FILE OPERATIONS =====
-  const openFile = useCallback(async (path: string) => {
-    const existing = openTabs.find(t => t.path === path);
-    if (existing) { setActiveTab(path); if (isMobile) setMobileSidebarOpen(false); return; }
-
-    const file = await storage.getFile(path);
-    if (!file || file.type === 'folder') return;
-
-    setOpenTabs(prev => [...prev, { path: file.path, content: file.content, savedContent: file.content, type: file.type }]);
-    setActiveTab(path);
-    if (isMobile) setMobileSidebarOpen(false);
-  }, [openTabs, isMobile]);
-
-  const closeTab = useCallback((path: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const tab = openTabs.find(t => t.path === path);
-    if (tab && tab.content !== tab.savedContent) {
-      storage.saveFile({ path: tab.path, content: tab.content, type: tab.type || 'text', createdAt: Date.now() }).catch(console.error);
-      setFiles(prev => prev.map(f => f.path === path ? { ...f, content: tab.content } : f));
-    }
-    setOpenTabs(prev => {
-      const newTabs = prev.filter(t => t.path !== path);
-      if (activeTab === path) {
-        const idx = prev.findIndex(t => t.path === path);
-        setActiveTab(newTabs[Math.min(idx, newTabs.length - 1)]?.path || null);
-      }
-      return newTabs;
-    });
-  }, [openTabs, activeTab]);
-
-  const updateContent = useCallback((newContent: string) => {
-    if (!activeTab) return;
-    setOpenTabs(prev => prev.map(t => t.path === activeTab ? { ...t, content: newContent } : t));
-    autoSave(activeTab, newContent);
-  }, [activeTab, autoSave]);
-
-  const toggleFolder = useCallback((path: string) => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  }, []);
-
-  const createFile = useCallback(async (name: string, parentPath = '') => {
-    const fullPath = parentPath ? `${parentPath}/${name}` : name;
-    const existing = await storage.getFile(fullPath);
-    if (existing) { toast.error('File already exists'); return; }
-
-    const isMd = fullPath.endsWith('.md') || fullPath.endsWith('.markdown') || fullPath.endsWith('.mdx');
-    const content = isMd ? `# ${name.replace(/\.(md|markdown|mdx)$/, '')}\n\n` : '';
-    await storage.saveFile({ path: fullPath, content, type: 'text', createdAt: Date.now() });
-
-    const allFiles = await storage.getAllFiles();
-    setFiles(allFiles);
-    if (parentPath) setExpandedFolders(prev => new Set([...prev, parentPath]));
-    openFile(fullPath);
-    toast.success(`Created ${name}`);
-  }, [openFile]);
-
-  const createFolder = useCallback(async (name: string, parentPath = '') => {
-    const fullPath = parentPath ? `${parentPath}/${name}` : name;
-    await storage.saveFile({ path: fullPath, content: '', type: 'folder', createdAt: Date.now() });
-    const allFiles = await storage.getAllFiles();
-    setFiles(allFiles);
-    setExpandedFolders(prev => new Set([...prev, parentPath, fullPath].filter(Boolean)));
-    toast.success(`Created folder ${name}`);
-  }, []);
-
-  const handleRename = useCallback(async (oldPath: string, newName: string, isDir: boolean) => {
-    const parts = oldPath.split('/');
-    parts[parts.length - 1] = newName;
-    const newPath = parts.join('/');
-    if (oldPath === newPath) return;
-
-    try {
-      if (isDir) await storage.renameFolder(oldPath, newPath);
-      else await storage.renameFile(oldPath, newPath);
-
-      const allFiles = await storage.getAllFiles();
-      setFiles(allFiles);
-      setOpenTabs(prev => prev.map(t => {
-        if (t.path === oldPath) return { ...t, path: newPath };
-        if (isDir && t.path.startsWith(oldPath + '/')) return { ...t, path: newPath + t.path.substring(oldPath.length) };
-        return t;
-      }));
-      if (activeTab === oldPath) setActiveTab(newPath);
-      if (isDir && activeTab?.startsWith(oldPath + '/')) setActiveTab(newPath + activeTab.substring(oldPath.length));
-      toast.success('Renamed successfully');
-    } catch (err) {
-      console.error('Rename failed:', err);
-      toast.error('Rename failed');
-    }
-  }, [activeTab]);
-
-  const handleDelete = useCallback(async (path: string, isDir: boolean) => {
-    try {
-      if (isDir) await storage.deleteByPrefix(path);
-      else await storage.deleteFile(path);
-
-      const allFiles = await storage.getAllFiles();
-      setFiles(allFiles);
-      setOpenTabs(prev => {
-        const newTabs = prev.filter(t => {
-          if (t.path === path) return false;
-          if (isDir && t.path.startsWith(path + '/')) return false;
-          return true;
-        });
-        if (!newTabs.some(t => t.path === activeTab)) setActiveTab(newTabs[0]?.path || null);
-        return newTabs;
-      });
-      toast.success('Deleted');
-    } catch (err) {
-      toast.error('Delete failed');
-    }
-  }, [activeTab]);
-
-  // ===== IMPORT/EXPORT =====
-  const handleImportZip = useCallback(async (file: globalThis.File) => {
-    try {
-      toast.info('Importing enclave...');
-      const JSZip = (await import('jszip')).default;
-      const zip = await JSZip.loadAsync(file);
-      const newFiles: { path: string; content: string; type: string; createdAt: number }[] = [];
-      const entries = Object.entries(zip.files);
-
-      // Check for manifest.json
-      let manifest: { files?: { path: string; type: string; createdAt: number }[] } | null = null;
-      if (zip.files['manifest.json']) {
-        try {
-          const manifestContent = await zip.files['manifest.json'].async('string');
-          manifest = JSON.parse(manifestContent);
-        } catch { /* ignore bad manifest */ }
-      }
-
-      let commonPrefix = '';
-      const nonDir = entries.filter(([_, e]) => !e.dir);
-      if (nonDir.length > 0) {
-        const paths = nonDir.map(([p]) => p).filter(p => p !== 'manifest.json');
-        if (paths.length > 0) {
-          const first = paths[0].split('/');
-          if (first.length > 1 && paths.every(p => p.startsWith(first[0] + '/'))) {
-            commonPrefix = first[0] + '/';
-          }
-        }
-      }
-
-      for (const [path, entry] of entries) {
-        if (entry.dir || path === 'manifest.json') continue;
-        let clean = path;
-        if (commonPrefix && clean.startsWith(commonPrefix)) clean = clean.substring(commonPrefix.length);
-        if (!clean || clean.startsWith('__MACOSX') || clean.includes('.DS_Store')) continue;
-
-        // Use manifest metadata if available
-        const manifestEntry = manifest?.files?.find(f => f.path === clean);
-
-        if (isTextFile(clean)) {
-          const content = await entry.async('string');
-          newFiles.push({ path: clean, content, type: 'text', createdAt: manifestEntry?.createdAt || Date.now() });
-        } else {
-          const content = await entry.async('base64');
-          newFiles.push({ path: clean, content, type: 'binary', createdAt: manifestEntry?.createdAt || Date.now() });
-        }
-      }
-
-      if (newFiles.length === 0) { toast.error('No files found in archive'); return; }
-
-      await storage.bulkSave(newFiles);
-      const allFiles = await storage.getAllFiles();
-      setFiles(allFiles);
-
-      const firstText = newFiles.find(f => f.type === 'text');
-      if (firstText) openFile(firstText.path);
-
-      const rootFolders = new Set(newFiles.map(f => f.path.split('/')[0]).filter(p => newFiles.some(f => f.path.startsWith(p + '/'))));
-      setExpandedFolders(prev => new Set([...prev, ...rootFolders]));
-      toast.success(`Imported ${newFiles.length} files`);
-    } catch (err) {
-      console.error('Import failed:', err);
-      toast.error('Failed to import archive');
-    }
-  }, [openFile]);
-
-  const handleImportFiles = useCallback(async (fileList: FileList, targetFolder = '') => {
-    try {
-      const newFiles: { path: string; content: string; type: string; createdAt: number }[] = [];
-      const fileArray = Array.from(fileList);
-      const prefix = targetFolder ? (targetFolder.endsWith('/') ? targetFolder : targetFolder + '/') : '';
-
-      for (const file of fileArray) {
-        // If it's a zip/enclave, delegate to zip handler
-        if (file.name.endsWith('.zip') || file.name.endsWith('.enclave')) {
-          await handleImportZip(file);
-          continue;
-        }
-
-        const filePath = prefix + file.name;
-
-        if (isTextFile(file.name)) {
-          const content = await file.text();
-          newFiles.push({ path: filePath, content, type: 'text', createdAt: Date.now() });
-        } else {
-          const buffer = await file.arrayBuffer();
-          const bytes = new Uint8Array(buffer);
-          let binary = '';
-          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-          const content = btoa(binary);
-          newFiles.push({ path: filePath, content, type: 'binary', createdAt: Date.now() });
-        }
-      }
-
-      if (newFiles.length > 0) {
-        await storage.bulkSave(newFiles);
-        const allFiles = await storage.getAllFiles();
-        setFiles(allFiles);
-        if (targetFolder) setExpandedFolders(prev => new Set([...prev, targetFolder]));
-        const firstText = newFiles.find(f => f.type === 'text');
-        if (firstText) openFile(firstText.path);
-        toast.success(`Imported ${newFiles.length} file${newFiles.length > 1 ? 's' : ''}${targetFolder ? ` into ${targetFolder}` : ''}`);
-      }
-    } catch (err) {
-      console.error('File import failed:', err);
-      toast.error('Failed to import files');
-    }
-  }, [handleImportZip, openFile]);
-
-  const handleImportFolder = useCallback(async (fileList: FileList) => {
-    try {
-      const newFiles: { path: string; content: string; type: string; createdAt: number }[] = [];
-      const fileArray = Array.from(fileList);
-
-      for (const file of fileArray) {
-        const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
-        if (relativePath.includes('.DS_Store') || relativePath.includes('__MACOSX')) continue;
-
-        if (isTextFile(file.name)) {
-          const content = await file.text();
-          newFiles.push({ path: relativePath, content, type: 'text', createdAt: Date.now() });
-        } else {
-          const buffer = await file.arrayBuffer();
-          const bytes = new Uint8Array(buffer);
-          let binary = '';
-          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-          const content = btoa(binary);
-          newFiles.push({ path: relativePath, content, type: 'binary', createdAt: Date.now() });
-        }
-      }
-
-      if (newFiles.length > 0) {
-        await storage.bulkSave(newFiles);
-        const allFiles = await storage.getAllFiles();
-        setFiles(allFiles);
-
-        const rootFolders = new Set(newFiles.map(f => f.path.split('/')[0]).filter(p => newFiles.some(f => f.path.startsWith(p + '/'))));
-        setExpandedFolders(prev => new Set([...prev, ...rootFolders]));
-
-        const firstText = newFiles.find(f => f.type === 'text');
-        if (firstText) openFile(firstText.path);
-        toast.success(`Imported folder with ${newFiles.length} files`);
-      }
-    } catch (err) {
-      console.error('Folder import failed:', err);
-      toast.error('Failed to import folder');
-    }
-  }, [openFile]);
-
-  const handleExportEnclave = useCallback(async () => {
-    try {
-      const JSZip = (await import('jszip')).default;
-      const zip = new JSZip();
-      const allFiles = await storage.getAllFiles();
-
-      const manifestFiles: { path: string; type: string; createdAt: number; updatedAt?: number }[] = [];
-
-      for (const file of allFiles) {
-        if (file.type === 'folder') continue;
-        if (file.type === 'binary') zip.file(file.path, file.content, { base64: true });
-        else zip.file(file.path, file.content || '');
-        manifestFiles.push({ path: file.path, type: file.type, createdAt: file.createdAt, updatedAt: file.updatedAt });
-      }
-
-      // Add manifest.json
-      const manifest = {
-        version: '1.0',
-        app: 'portable-workspace',
-        createdAt: new Date().toISOString(),
-        fileCount: manifestFiles.length,
-        files: manifestFiles,
-      };
-      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
-
-      const blob = await zip.generateAsync({ type: 'blob' });
-      downloadBlob(blob, 'workspace.enclave');
-      toast.success('Workspace exported as .enclave');
-    } catch (err) {
-      toast.error('Export failed');
-    }
-  }, []);
-
-  const handleExportFile = useCallback(() => {
-    if (!activeTabData) return;
-    const blob = new Blob([activeTabData.content], { type: 'text/plain' });
-    downloadBlob(blob, activeTabData.path.split('/').pop() || 'file');
-    toast.success('File exported');
-  }, [activeTabData]);
-
-  const handleClearWorkspace = useCallback(async () => {
-    await storage.clearAll();
-    setFiles([]);
-    setOpenTabs([]);
-    setActiveTab(null);
-    setExpandedFolders(new Set());
-    localStorage.removeItem('pw-state');
-    toast.success('Workspace cleared');
-  }, []);
-
-  // ===== DRAG & DROP =====
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const fileList = e.dataTransfer?.files;
-    if (fileList && fileList.length > 0) {
-      handleImportFiles(fileList);
-    }
-  }, [handleImportFiles]);
-
-  // ===== KEYBOARD SHORTCUTS ON TEXTAREA =====
-  const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Vim keybindings
-    if (vimEnabled) {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      // Allow Ctrl shortcuts even in Vim mode
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 's') {
-          e.preventDefault();
-          if (activeTab) autoSave(activeTab, activeTabData?.content || '');
-          toast.success('Saved');
-          return;
-        }
-        return; // Let other Ctrl combos through
-      }
-
-      const result = vim.handleVimKeyDown(e, textarea, activeTabData?.content || '', updateContent);
-      setVimDisplayMode(result.mode);
-      if (result.preventDefault) e.preventDefault();
-      if (result.cursorPos !== undefined) {
-        setTimeout(() => { textarea.focus(); textarea.setSelectionRange(result.cursorPos!, result.cursorPos!); }, 0);
-      }
+  const handleSetupComplete = async () => {
+    if (!passphrase.trim()) {
+      toast.error('Passphrase cannot be empty.');
       return;
     }
-
-    if (e.ctrlKey || e.metaKey) {
-      const textarea = textareaRef.current;
-      const text = activeTabData?.content || '';
-
-      if (e.key === 's') {
-        e.preventDefault();
-        if (activeTab) autoSave(activeTab, text);
-        toast.success('Saved');
-      } else if (e.key === 'b' && textarea) {
-        e.preventDefault();
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const sel = text.substring(start, end) || 'bold';
-        const newText = text.substring(0, start) + '**' + sel + '**' + text.substring(end);
-        updateContent(newText);
-        setTimeout(() => { textarea.focus(); textarea.setSelectionRange(start + 2, start + 2 + sel.length); }, 10);
-      } else if (e.key === 'i' && textarea) {
-        e.preventDefault();
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const sel = text.substring(start, end) || 'italic';
-        const newText = text.substring(0, start) + '*' + sel + '*' + text.substring(end);
-        updateContent(newText);
-        setTimeout(() => { textarea.focus(); textarea.setSelectionRange(start + 1, start + 1 + sel.length); }, 10);
-      } else if (e.key === 'k' && textarea) {
-        e.preventDefault();
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const sel = text.substring(start, end) || 'link text';
-        const newText = text.substring(0, start) + '[' + sel + '](url)' + text.substring(end);
-        updateContent(newText);
-        setTimeout(() => { textarea.focus(); textarea.setSelectionRange(start + 1, start + 1 + sel.length); }, 10);
-      }
-    }
-
-    // Tab key inserts spaces
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const text = activeTabData?.content || '';
-      const newText = text.substring(0, start) + '  ' + text.substring(end);
-      updateContent(newText);
-      setTimeout(() => { textarea.focus(); textarea.setSelectionRange(start + 2, start + 2); }, 10);
-    }
-  }, [activeTab, activeTabData, autoSave, updateContent, vimEnabled]);
-
-  // ===== SHARE VIA URL =====
-  const handleShare = useCallback(() => {
-    if (!activeTabData) return;
-    try {
-      const compressed = LZString.compressToEncodedURIComponent(activeTabData.content);
-      const url = `${window.location.origin}${window.location.pathname}#shared=${compressed}`;
-      navigator.clipboard.writeText(url).then(() => {
-        toast.success('Share link copied to clipboard!');
-      }).catch(() => {
-        // Fallback: show the URL in a prompt
-        window.prompt('Copy this share link:', url);
-      });
-    } catch {
-      toast.error('Failed to generate share link');
-    }
-  }, [activeTabData]);
-
-  // ===== VERSION HISTORY =====
-  const openHistory = useCallback(async () => {
-    if (!activeTab) return;
-    try {
-      const versions = await storage.getVersions(activeTab);
-      setHistoryVersions(versions);
-      setDialogState({ type: 'history', path: activeTab, isDir: false, value: '' });
-    } catch {
-      toast.error('Failed to load history');
-    }
-  }, [activeTab]);
-
-  const restoreVersion = useCallback(async (timestamp: number) => {
-    if (!activeTab) return;
-    const content = await storage.restoreVersion(activeTab, timestamp);
-    if (content !== null) {
-      updateContent(content);
-      setDialogState({ type: null, path: '', isDir: false, value: '' });
-      toast.success('Version restored');
-    }
-  }, [activeTab, updateContent]);
-
-  // ===== VIM TOGGLE =====
-  const toggleVim = useCallback(() => {
-    setVimEnabled(prev => {
-      const next = !prev;
-      if (next) {
-        vim.resetVim();
-        setVimDisplayMode('normal');
-        toast.success('Vim mode enabled');
-      } else {
-        toast.success('Vim mode disabled');
-      }
-      try { localStorage.setItem('pw-vim', String(next)); } catch {}
-      return next;
-    });
-  }, []);
-
-  // Load vim preference
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('pw-vim');
-      if (saved === 'true') {
-        setVimEnabled(true);
-        vim.resetVim();
-        setVimDisplayMode('normal');
-      }
-    } catch {}
-  }, []);
-
-  // ===== PRINT / PDF EXPORT =====
-  const handlePrint = useCallback(() => {
-    if (!activeTabData) return;
-    // Switch to preview mode temporarily for printing
-    const prevMode = viewMode;
-    if (prevMode !== 'preview') setViewMode('preview');
-    setTimeout(() => {
-      window.print();
-      if (prevMode !== 'preview') setViewMode(prevMode);
-    }, 100);
-  }, [activeTabData, viewMode]);
-
-  // ===== FIND & REPLACE =====
-  const handleFind = useCallback(() => {
-    if (!activeTabData || !findText) return;
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const text = activeTabData.content;
-    const idx = text.indexOf(findText, textarea.selectionEnd);
-    if (idx !== -1) {
-      textarea.focus();
-      textarea.setSelectionRange(idx, idx + findText.length);
-    } else {
-      // Wrap around
-      const wrapIdx = text.indexOf(findText);
-      if (wrapIdx !== -1) {
-        textarea.focus();
-        textarea.setSelectionRange(wrapIdx, wrapIdx + findText.length);
-      } else {
-        toast.error('No match found');
-      }
-    }
-  }, [activeTabData, findText]);
-
-  const handleReplaceOne = useCallback(() => {
-    if (!activeTabData || !findText) return;
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = activeTabData.content.substring(start, end);
-    if (selected === findText) {
-      const newText = activeTabData.content.substring(0, start) + replaceText + activeTabData.content.substring(end);
-      updateContent(newText);
-      setTimeout(() => {
-        textarea.focus();
-        textarea.setSelectionRange(start + replaceText.length, start + replaceText.length);
-        handleFind();
-      }, 10);
-    } else {
-      handleFind();
-    }
-  }, [activeTabData, findText, replaceText, updateContent, handleFind]);
-
-  const handleReplaceAll = useCallback(() => {
-    if (!activeTabData || !findText) return;
-    const newText = activeTabData.content.split(findText).join(replaceText);
-    updateContent(newText);
-    toast.success('Replaced all occurrences');
-  }, [activeTabData, findText, replaceText, updateContent]);
-
-  // ===== PIN / UNPIN FILES =====
-  const togglePin = useCallback((path: string) => {
-    setPinnedFiles(prev => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-        toast.success('Unpinned');
-      } else {
-        next.add(path);
-        toast.success('Pinned to top');
-      }
-      return next;
-    });
-  }, []);
-
-  // Ctrl+H for find & replace
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
-        e.preventDefault();
-        setFindReplaceOpen(prev => !prev);
-        setTimeout(() => findInputRef.current?.focus(), 50);
-      }
-      if (e.key === 'Escape' && findReplaceOpen) {
-        setFindReplaceOpen(false);
-      }
+    const user = { 
+      username: generatedUser, 
+      hash: btoa(passphrase),
+      recoveryCode: generatedRecoveryCode
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [findReplaceOpen]);
-
-  // ===== THEME TOGGLE =====
-  const toggleTheme = useCallback(() => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  }, [theme, setTheme]);
-
-  // ===== DIALOG HELPERS =====
-  const openDialog = (type: DialogState['type'], path = '', isDir = false) => {
-    setDialogState({ type, path, isDir, value: type === 'rename' ? (path.split('/').pop() || '') : '' });
+    localStorage.setItem('vela-user', JSON.stringify(user));
+    sessionStorage.setItem('vela-logged-in', '1');
+    setVelaUser(user as any);
+    setPassphrase('');
+    await loadEnclaves();
+    setAppState('dashboard');
   };
-  const closeDialog = () => setDialogState({ type: null, path: '', isDir: false, value: '' });
 
-  const confirmDialog = async () => {
-    const { type, path, isDir, value } = dialogState;
-    if (type === 'newFile') {
-      const name = value.trim();
-      if (!name) return;
-      await createFile(name.includes('.') ? name : name + '.md', path);
-    } else if (type === 'newFolder') {
-      const name = value.trim();
-      if (!name) return;
-      await createFolder(name, path);
-    } else if (type === 'rename') {
-      const name = value.trim();
-      if (!name) return;
-      await handleRename(path, name, isDir);
-    } else if (type === 'delete') {
-      await handleDelete(path, isDir);
-    } else if (type === 'clearWorkspace') {
-      await handleClearWorkspace();
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!velaUser || btoa(loginPassphrase) !== velaUser.hash) {
+      setLoginError(true);
+      return;
     }
-    closeDialog();
+    setLoginError(false);
+    setLoginPassphrase('');
+    setRecoveryInput('');
+    sessionStorage.setItem('vela-logged-in', '1');
+    await loadEnclaves();
+    setAppState('dashboard');
   };
 
-  // ===== SIDEBAR CONTENT =====
-  const sidebarContent = (
-    <div className="flex flex-col h-full bg-card/30">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Explorer</span>
-        <div className="flex items-center gap-0.5">
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { if (isMobile) setMobileSidebarOpen(false); openDialog('newFile'); }}>
-                  <FilePlus className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">New File</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { if (isMobile) setMobileSidebarOpen(false); openDialog('newFolder'); }}>
-                  <FolderPlus className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">New Folder</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => {
-                  if (isMobile) setMobileSidebarOpen(false);
-                  setTimeout(() => filesInputRef.current?.click(), 150);
-                }}>
-                  <Upload className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">Import Files</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => {
-                  if (isMobile) setMobileSidebarOpen(false);
-                  setTimeout(() => folderInputRef.current?.click(), 150);
-                }}>
-                  <FolderUp className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">Import Folder</TooltipContent>
-            </Tooltip>
-            {isMobile && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setMobileSidebarOpen(false)}>
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">Close</TooltipContent>
-              </Tooltip>
-            )}
-          </TooltipProvider>
-        </div>
-      </div>
+const handleSaveEnclave = async (data: {
+  id?: string;
+  name: string;
+  avatar: string;
+}) => {
+  try {
+    if (data.id) {
+      // ✏️ EDIT MODE
+      const updated = enclaves.map(e =>
+        e.id === data.id
+          ? { ...e, name: data.name, avatar: data.avatar }
+          : e
+      );
 
-      <div className="px-2 py-1.5">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-          <Input
-            placeholder="Search files..."
-            className="h-7 pl-7 text-xs bg-background/50"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
+      setEnclaves(updated);
 
-      <ScrollArea className="flex-1">
-        {/* Pinned Files Section */}
-        {pinnedFiles.size > 0 && (
-          <div className="py-1 border-b border-border/50">
-            <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1">
-              <Star className="w-3 h-3" /> Pinned
-            </div>
-            {[...pinnedFiles].map(path => {
-              const name = path.split('/').pop() || path;
-              const isActive = activeTab === path;
-              return (
-                <div
-                  key={path}
-                  className={`
-                    group flex items-center gap-1.5 px-3 py-1 text-xs cursor-pointer rounded-sm mx-1
-                    hover:bg-accent/60 transition-colors
-                    ${isActive ? 'bg-accent text-accent-foreground font-medium' : 'text-muted-foreground'}
-                  `}
-                  onClick={() => openFile(path)}
-                >
-                  <Star className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                  <span className="truncate flex-1">{name}</span>
-                  <button
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent/80 transition-opacity flex-shrink-0"
-                    onClick={(e) => { e.stopPropagation(); togglePin(path); }}
-                  >
-                    <StarOff className="w-3 h-3" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      await storage.saveEnclave({
+        ...enclaves.find(e => e.id === data.id)!,
+        name: data.name,
+        avatar: data.avatar,
+      });
 
-        <div className="py-1">
-          {filteredTree.children.length === 0 ? (
-            <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-              <p className="font-medium">No files yet</p>
-              <p className="mt-1 opacity-70">Create a file or import files</p>
-            </div>
-          ) : (
-            filteredTree.children.map(node => (
-              <FileTreeNode
-                key={node.path}
-                node={node}
-                level={0}
-                activeTab={activeTab}
-                expandedFolders={expandedFolders}
-                pinnedFiles={pinnedFiles}
-                onToggleFolder={toggleFolder}
-                onOpenFile={openFile}
-                onDeleteItem={(p, d) => openDialog('delete', p, d)}
-                onRenameItem={(p, d) => openDialog('rename', p, d)}
-                onNewFileInFolder={(p) => openDialog('newFile', p)}
-                onTogglePin={togglePin}
-                onImportIntoFolder={(folderPath, files) => handleImportFiles(files, folderPath)}
-              />
-            ))
-          )}
-        </div>
-      </ScrollArea>
+    } else {
+      // ➕ CREATE MODE
+      const newEnclave: storage.EnclaveRecord = {
+        id: crypto.randomUUID(),
+        name: data.name,
+        purpose: 'Workspace',
+        avatar: data.avatar,
+        theme: 'dark',
+        createdAt: Date.now(),
+        order: Date.now(),
+      };
 
-      <div className="border-t border-border p-2 space-y-0.5">
-        <Button variant="ghost" size="sm" className="w-full justify-start h-7 text-xs gap-2" onClick={handleExportEnclave}>
-          <Download className="w-3.5 h-3.5" />
-          Export Enclave
-        </Button>
-        <Button variant="ghost" size="sm" className="w-full justify-start h-7 text-xs gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => openDialog('clearWorkspace')}>
-          <Trash2 className="w-3.5 h-3.5" />
-          Clear Workspace
-        </Button>
-      </div>
-    </div>
-  );
+      await storage.saveEnclave(newEnclave);
+      setEnclaves(prev => [...prev, newEnclave]);
+    }
 
-  // ===== LOADING =====
-  if (loading) {
+    setShowEnclaveOnboarding(false);
+    setEditingEnclaveId(null);
+
+  } catch (err) {
+    console.error(err);
+    toast.error('Failed to save enclave');
+  }
+};
+
+  const getAvatarIcon = (id: string) => {
+    const found = AVATARS.find((a) => a.id === id);
+    if (!found) return <Folder01Icon className="w-8 h-8 text-sky-400" />;
+    const Icon = found.icon;
+    return <Icon className={`w-8 h-8 ${found.color}`} />;
+  };
+
+  const getAvatarBg = (id: string) => {
+    const found = AVATARS.find((a) => a.id === id);
+    if (!found) return 'bg-sky-400/10';
+    return found.bg;
+  };
+
+  if (appState === 'booting') {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-3">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-          <p className="text-sm text-muted-foreground">Loading workspace...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#050505]">
+        <Loader2 className="w-8 h-8 animate-spin text-white/50" />
       </div>
     );
   }
 
-  const showEmptyState = files.length === 0;
-
   return (
-    <div
-      className={`h-screen flex flex-col bg-background overflow-hidden ${isDragging ? 'drop-zone-active' : ''}`}
-      onDrop={handleDrop}
-      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-      onDragLeave={(e) => { if (e.currentTarget === e.target) setIsDragging(false); }}
-    >
-      <Toaster position="bottom-right" theme="dark" richColors />
+    <div className="min-h-screen bg-[#050505] text-white overflow-hidden relative font-sans">
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/30 blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-pink-600/20 blur-[150px] rounded-full pointer-events-none" />
 
-      {/* Hidden file inputs */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".zip,.enclave"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleImportZip(file);
-          e.target.value = '';
-        }}
-      />
-      <input
-        ref={filesInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          const files = e.target.files;
-          if (files && files.length > 0) handleImportFiles(files);
-          e.target.value = '';
-        }}
-      />
-      <input
-        ref={folderInputRef}
-        type="file"
-        // @ts-expect-error webkitdirectory is not in the standard typings
-        webkitdirectory="true"
-        className="hidden"
-        onChange={(e) => {
-          const files = e.target.files;
-          if (files && files.length > 0) handleImportFolder(files);
-          e.target.value = '';
-        }}
-      />
 
+
+{/* SETUP WIZARD */}
+{appState === 'setup' && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
+    <div className="max-w-md w-full bg-neutral-900/80 border border-white/10 p-8 rounded-3xl shadow-2xl backdrop-blur-2xl transition-all duration-500 ease-out animate-in zoom-in-95">
+      
       {/* HEADER */}
-      <header className="h-10 border-b border-border flex items-center px-2 bg-card/30 flex-shrink-0">
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {isMobile ? (
-            <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                  <Menu className="w-4 h-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0 [&>button:last-child]:hidden">
-                {sidebarContent}
-              </SheetContent>
-            </Sheet>
-          ) : (
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSidebarOpen(!sidebarOpen)}>
-              {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
-            </Button>
-          )}
-          <div className="flex items-center gap-1.5">
-            <Package className="w-4 h-4 text-primary" />
-            <span className="text-xs font-bold hidden sm:inline tracking-wide">Portable Workspace</span>
-          </div>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+          <Sparkles className="w-5 h-5 text-white" />
         </div>
-
-        {/* TAB BAR */}
-        <div className="flex-1 flex items-center ml-2 overflow-x-auto scrollbar-hide">
-          {openTabs.map(tab => {
-            const isAct = tab.path === activeTab;
-            const dirty = tab.content !== tab.savedContent;
-            const name = tab.path.split('/').pop() || tab.path;
-            return (
-              <div
-                key={tab.path}
-                className={`
-                  flex items-center gap-1.5 px-3 py-1 text-xs cursor-pointer border-r border-border/50
-                  transition-all whitespace-nowrap flex-shrink-0
-                  ${isAct
-                    ? 'bg-background text-foreground border-b-2 border-b-primary -mb-px'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}
-                `}
-                onClick={() => setActiveTab(tab.path)}
-                onMouseDown={(e) => { if (e.button === 1) closeTab(tab.path, e); }}
-              >
-                {dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />}
-                <span className="max-w-[100px] truncate">{name}</span>
-                <button className="p-0.5 rounded hover:bg-muted transition-colors flex-shrink-0" onClick={(e) => closeTab(tab.path, e)}>
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* HEADER ACTIONS */}
-        <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
-          {activeTabData && (
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleExportFile}>
-                    <FileDown className="w-3.5 h-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="text-xs">Export File</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => filesInputRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-2" /> Import Files
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => folderInputRef.current?.click()}>
-                <FolderUp className="w-4 h-4 mr-2" /> Import Folder
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                <Package className="w-4 h-4 mr-2" /> Import Enclave (.enclave/.zip)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportEnclave}>
-                <Download className="w-4 h-4 mr-2" /> Export Enclave
-              </DropdownMenuItem>
-              {activeTabData && (
-                <DropdownMenuItem onClick={handleExportFile}>
-                  <FileDown className="w-4 h-4 mr-2" /> Export Current File
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              {activeTabData && (
-                <>
-                  <DropdownMenuItem onClick={handleShare}>
-                    <Share2 className="w-4 h-4 mr-2" /> Share via URL
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={openHistory}>
-                    <History className="w-4 h-4 mr-2" /> Version History
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem onClick={() => openDialog('newFile')}>
-                <FilePlus className="w-4 h-4 mr-2" /> New File
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openDialog('newFolder')}>
-                <FolderPlus className="w-4 h-4 mr-2" /> New Folder
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {activeTabData && (
-                <DropdownMenuItem onClick={handlePrint}>
-                  <Printer className="w-4 h-4 mr-2" /> Print / PDF
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => { setFindReplaceOpen(prev => !prev); setTimeout(() => findInputRef.current?.focus(), 50); }}>
-                <Replace className="w-4 h-4 mr-2" /> Find & Replace
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={toggleTheme}>
-                {theme === 'dark' ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
-                {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Desktop Sidebar */}
-        {!isMobile && sidebarOpen && (
-          <div className="w-56 border-r border-border flex-shrink-0">
-            {sidebarContent}
-          </div>
-        )}
-
-        {/* Editor Area */}
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          {showEmptyState ? (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="text-center space-y-6 max-w-md">
-                <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-                  <Package className="w-10 h-10 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold mb-2">Portable Workspace</h2>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Your private, browser-based file editor. All data stays securely in your browser - nothing is sent to any server.
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button onClick={() => filesInputRef.current?.click()} className="gap-2" size="lg">
-                    <Upload className="w-4 h-4" /> Import Files
-                  </Button>
-                  <Button variant="outline" onClick={() => openDialog('newFile')} className="gap-2" size="lg">
-                    <FilePlus className="w-4 h-4" /> New File
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">Drag & drop files anywhere to import</p>
-              </div>
-            </div>
-          ) : activeTabData ? (() => {
-            // Determine which editor to use based on file extension
-            const ext = (activeTab || '').split('.').pop()?.toLowerCase() || '';
-            const isMarkdownFile = ['md', 'markdown', 'mdx', 'mdown', 'mkd'].includes(ext);
-            const isCanvasFile = ext === 'canvas';
-            const isBinaryFile = activeTabData.type === 'binary';
-
-            // Auto-set editor mode based on file type
-            const effectiveMode = isBinaryFile ? 'markdown' : isCanvasFile ? 'canvas' : isMarkdownFile ? editorMode : editorMode;
-
-            return (
-              <>
-                {/* Editor Mode Toggle Bar */}
-                {!isBinaryFile && (
-                  <div className="flex items-center border-b border-border bg-card/30 px-2 py-1 gap-1 flex-shrink-0" data-toolbar>
-                    {!isCanvasFile && (
-                      <>
-                        <TooltipProvider delayDuration={300}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant={effectiveMode === 'block' ? 'secondary' : 'ghost'}
-                                size="sm"
-                                className="h-7 px-2.5 text-xs gap-1"
-                                onClick={() => setEditorMode('block')}
-                              >
-                                <FileText className="w-3 h-3" />
-                                <span className="hidden sm:inline">Block</span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="text-xs">Notion-like block editor</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant={effectiveMode === 'markdown' ? 'secondary' : 'ghost'}
-                                size="sm"
-                                className="h-7 px-2.5 text-xs gap-1"
-                                onClick={() => setEditorMode('markdown')}
-                              >
-                                <FileCode className="w-3 h-3" />
-                                <span className="hidden sm:inline">Markdown</span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="text-xs">Raw markdown editor</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
-                        {/* Show markdown toolbar only in markdown mode */}
-                        {effectiveMode === 'markdown' && (
-                          <div className="flex-1">
-                            <MarkdownToolbar
-                              textareaRef={textareaRef}
-                              content={activeTabData.content}
-                              onContentChange={updateContent}
-                              viewMode={viewMode}
-                              onViewModeChange={setViewMode}
-                              isMobile={isMobile}
-                            />
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {isCanvasFile && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Brush className="w-3.5 h-3.5" />
-                        <span>Canvas</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Find & Replace Bar */}
-                {findReplaceOpen && effectiveMode === 'markdown' && (
-                  <div className="findbar-enter border-b border-border bg-card/60 backdrop-blur px-3 py-2 flex items-center gap-2 flex-wrap" data-no-print>
-                    <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
-                      <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                      <Input
-                        ref={findInputRef}
-                        placeholder="Find..."
-                        value={findText}
-                        onChange={(e) => setFindText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleFind(); }}
-                        className="h-7 text-xs flex-1"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
-                      <Replace className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                      <Input
-                        placeholder="Replace..."
-                        value={replaceText}
-                        onChange={(e) => setReplaceText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleReplaceOne(); }}
-                        className="h-7 text-xs flex-1"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleFind}>
-                        Find
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReplaceOne}>
-                        Replace
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReplaceAll}>
-                        All
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setFindReplaceOpen(false)}>
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex-1 overflow-hidden min-h-0">
-                  {isBinaryFile ? (
-                    <div className="flex-1 flex items-center justify-center h-full">
-                      <div className="text-center space-y-2 text-muted-foreground">
-                        <File className="w-12 h-12 mx-auto opacity-40" />
-                        <p className="text-sm font-medium">Binary File</p>
-                        <p className="text-xs">This file cannot be edited in the browser</p>
-                      </div>
-                    </div>
-                  ) : isCanvasFile ? (
-                    <CanvasEditor
-                      content={activeTabData.content}
-                      onContentChange={updateContent}
-                    />
-                  ) : effectiveMode === 'block' ? (
-                    <BlockEditor
-                      key={activeTab}
-                      content={activeTabData.content}
-                      onContentChange={updateContent}
-                    />
-                  ) : viewMode === 'edit' ? (
-                    <textarea
-                      ref={textareaRef}
-                      className="editor-textarea w-full h-full p-4 bg-background text-foreground font-mono text-sm resize-none outline-none leading-relaxed"
-                      value={activeTabData.content}
-                      onChange={(e) => updateContent(e.target.value)}
-                      onKeyDown={handleEditorKeyDown}
-                      spellCheck={false}
-                      placeholder="Start typing..."
-                    />
-                  ) : viewMode === 'preview' ? (
-                    <ScrollArea className="h-full">
-                      <div className="p-6 max-w-3xl mx-auto">
-                        <div className="markdown-body">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeTabData.content}</ReactMarkdown>
-                        </div>
-                      </div>
-                    </ScrollArea>
-                  ) : (
-                    <PanelGroup direction="horizontal">
-                      <Panel defaultSize={50} minSize={25}>
-                        <textarea
-                          ref={textareaRef}
-                          className="editor-textarea w-full h-full p-4 bg-background text-foreground font-mono text-sm resize-none outline-none leading-relaxed"
-                          value={activeTabData.content}
-                          onChange={(e) => updateContent(e.target.value)}
-                          onKeyDown={handleEditorKeyDown}
-                          spellCheck={false}
-                          placeholder="Start typing..."
-                        />
-                      </Panel>
-                      <PanelResizeHandle className="w-1.5 bg-border/50 hover:bg-primary/40 transition-colors cursor-col-resize resize-handle" />
-                      <Panel defaultSize={50} minSize={20}>
-                        <ScrollArea className="h-full">
-                          <div className="p-6">
-                            <div className="markdown-body">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeTabData.content}</ReactMarkdown>
-                            </div>
-                          </div>
-                        </ScrollArea>
-                      </Panel>
-                    </PanelGroup>
-                  )}
-                </div>
-              </>
-            );
-          })() : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center space-y-3">
-                <FileText className="w-14 h-14 mx-auto opacity-20" />
-                <p className="text-sm font-medium">No file selected</p>
-                <p className="text-xs opacity-70">Choose a file from the sidebar or create a new one</p>
-              </div>
-            </div>
-          )}
-        </div>
+        <h2 className="text-2xl font-bold tracking-tight">Welcome to Vela</h2>
       </div>
 
-      {/* STATUS BAR */}
-      <footer className="h-6 border-t border-border flex items-center px-3 bg-card/30 text-[10px] text-muted-foreground flex-shrink-0">
-        <div className="flex items-center gap-3">
-          {saving ? (
-            <span className="flex items-center gap-1 text-sky-400">
-              <Loader2 className="w-3 h-3 animate-spin" /> Saving...
-            </span>
-          ) : isDirty ? (
-            <span className="flex items-center gap-1 text-amber-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Modified
-            </span>
-          ) : activeTab ? (
-            <span className="flex items-center gap-1 text-emerald-400">
-              <CheckCircle className="w-3 h-3" /> Saved
-            </span>
-          ) : null}
-          {activeTabData && (
-            <span className="opacity-70">
-              {activeTabData.content.split(/\s+/).filter(Boolean).length} words · {activeTabData.content.length} chars
-            </span>
-          )}
-        </div>
-        <div className="flex-1" />
-        <div className="flex items-center gap-3">
-          {vimEnabled && (
-            <button
-              onClick={toggleVim}
-              className={`font-mono font-bold px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${
-                vimDisplayMode === 'normal'
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
-              }`}
-            >
-              {vimDisplayMode === 'normal' ? '-- NORMAL --' : '-- INSERT --'}
-            </button>
-          )}
-          {!vimEnabled && (
-            <button
-              onClick={toggleVim}
-              className="font-mono opacity-40 hover:opacity-80 cursor-pointer transition-opacity text-[9px]"
-              title="Enable Vim mode"
-            >
-              VIM
-            </button>
-          )}
-          {activeTab && <span className="opacity-70 max-w-[120px] truncate">{activeTab}</span>}
-          <span>{files.filter(f => f.type !== 'folder').length} files</span>
-          <span className="opacity-70">IndexedDB</span>
-          <button
-            onClick={toggleTheme}
-            className="opacity-50 hover:opacity-100 cursor-pointer transition-opacity"
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      {/* STEP 1 */}
+      {setupStep === 1 && (
+        <div className="space-y-6 animate-in slide-in-from-right-4">
+          
+          <Illustration 
+            src="/illustrations/undraw_morning-plans_5vln.svg"
+            className="h-40 mb-2 opacity-90"
+          />
+
+          <p className="text-neutral-400 text-sm leading-relaxed">
+            Vela is designed as a standalone environment that lives entirely within your device. There are no servers, no trackers, and no external connections. Your thoughts, files, and interactions are completely safe, secure, and purely local.
+          </p>
+
+          <Button 
+            onClick={() => setSetupStep(2)} 
+            className="w-full h-12 rounded-xl bg-white text-black hover:bg-neutral-200 mt-4"
           >
-            {theme === 'dark' ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
-          </button>
+            Continue <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
         </div>
-      </footer>
+      )}
 
-      {/* DIALOGS */}
-      <Dialog open={dialogState.type === 'newFile'} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>New File</DialogTitle>
-            <DialogDescription>
-              {dialogState.path ? `Create in ${dialogState.path}/` : 'Create in workspace root'}
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="filename.md"
-            value={dialogState.value}
-            onChange={(e) => setDialogState(prev => ({ ...prev, value: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && confirmDialog()}
-            autoFocus
+      {/* STEP 2 */}
+      {setupStep === 2 && (
+        <div className="space-y-6 animate-in slide-in-from-right-4">
+          
+          <Illustration 
+            src="/illustrations/undraw_control-panel_s0j2.svg"
+            className="h-40 mb-2 opacity-90"
           />
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button onClick={confirmDialog}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={dialogState.type === 'newFolder'} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>New Folder</DialogTitle>
-            <DialogDescription>
-              {dialogState.path ? `Create in ${dialogState.path}/` : 'Create in workspace root'}
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="folder-name"
-            value={dialogState.value}
-            onChange={(e) => setDialogState(prev => ({ ...prev, value: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && confirmDialog()}
-            autoFocus
+          <p className="text-neutral-400 text-sm leading-relaxed">
+            Within Vela, you isolate your worlds using Enclaves. An Enclave is a creative space tailored to a specific purpose. You could maintain one Enclave for writing code, and an entirely separate one for journaling. Data never crosses between Enclaves unless explicitly commanded.
+          </p>
+
+          <div className="flex gap-3 pt-2">
+            <Button 
+              variant="ghost" 
+              className="h-12 rounded-xl border border-white/10 w-24 hover:bg-white/5" 
+              onClick={() => setSetupStep(1)}
+            >
+              Back
+            </Button>
+
+            <Button 
+              className="flex-1 h-12 rounded-xl bg-white text-black hover:bg-neutral-200"
+              onClick={() => setSetupStep(3)}
+            >
+              Continue <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 3 */}
+      {setupStep === 3 && (
+        <div className="space-y-6 animate-in slide-in-from-right-4">
+          
+          <Illustration 
+            src="/illustrations/undraw_authentication_1evl.svg"
+            className="h-40 mb-2 opacity-90"
           />
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button onClick={confirmDialog}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={dialogState.type === 'rename'} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Rename {dialogState.isDir ? 'Folder' : 'File'}</DialogTitle>
-            <DialogDescription>Enter a new name</DialogDescription>
-          </DialogHeader>
-          <Input
-            value={dialogState.value}
-            onChange={(e) => setDialogState(prev => ({ ...prev, value: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && confirmDialog()}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button onClick={confirmDialog}>Rename</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="bg-black/50 p-4 rounded-xl border border-white/10 flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <User className="w-5 h-5 text-indigo-400" />
+              <span className="font-semibold text-lg text-white">{generatedUser}</span>
+            </div>
+            <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold">Local Alias</span>
+          </div>
 
-      <Dialog open={dialogState.type === 'delete'} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete {dialogState.isDir ? 'Folder' : 'File'}</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete <strong className="text-foreground">{dialogState.path}</strong>?
-              {dialogState.isDir && ' This will delete all files inside.'}
-              This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDialog}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-neutral-300 flex justify-between items-center">
+              <span>Master Passphrase</span>
+              <span className="text-[10px] text-neutral-500 font-mono">Secures your universe</span>
+            </label>
 
-      <Dialog open={dialogState.type === 'clearWorkspace'} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Clear Workspace</DialogTitle>
-            <DialogDescription>
-              This will permanently delete all files. Consider exporting as a ZIP first.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDialog}>Clear All</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Input
+              type="password"
+              autoFocus
+              placeholder="Min 6 characters recommended"
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              className="bg-black/50 border-white/10 h-12 text-base focus-visible:ring-indigo-500 rounded-xl"
+            />
+          </div>
 
-      {/* HISTORY DIALOG */}
-      <Dialog open={dialogState.type === 'history'} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="w-4 h-4" /> Version History
-            </DialogTitle>
-            <DialogDescription>
-              {dialogState.path} — {historyVersions.length} version{historyVersions.length !== 1 ? 's' : ''} saved
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[50vh]">
-            {historyVersions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">
-                <Clock className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p>No versions saved yet</p>
-                <p className="text-xs mt-1 opacity-70">Versions are auto-saved every 60 seconds while editing</p>
+          <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl space-y-2">
+            <div className="flex items-center gap-2 text-amber-400">
+              <ShieldCheck className="w-4 h-4" />
+              <span className="text-xs font-bold uppercase tracking-wider">Recovery Key</span>
+            </div>
+            <p className="text-[11px] text-neutral-400 leading-tight">
+              If you forget your passphrase, this is the <span className="text-amber-200/80 font-medium whitespace-nowrap">ONLY WAY</span> to regain access:
+            </p>
+            <div className="bg-black/60 p-4 rounded-xl border border-white/10 font-mono text-center tracking-widest text-white select-none cursor-pointer group relative active:scale-[0.98] transition-transform"
+                 onClick={() => copyToClipboard(generatedRecoveryCode)}>
+              {generatedRecoveryCode}
+              <div className="absolute inset-0 bg-white/[0.03] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl pointer-events-none">
+                <span className="text-[10px] tracking-normal font-sans text-neutral-400 bg-neutral-900/80 px-2 py-1 rounded-md border border-white/10">Click to copy</span>
               </div>
-            ) : (
-              <div className="space-y-2 pr-3">
-                {historyVersions.map((v) => {
-                  const date = new Date(v.timestamp);
-                  const preview = v.content.substring(0, 120).replace(/\n/g, ' ');
-                  return (
-                    <div
-                      key={v.timestamp}
-                      className="p-3 rounded-lg border border-border/50 hover:border-border hover:bg-muted/30 transition-colors group"
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button 
+              variant="ghost" 
+              className="h-12 rounded-xl border border-white/10 w-24 hover:bg-white/5" 
+              onClick={() => setSetupStep(2)}
+            >
+              Back
+            </Button>
+
+            <Button 
+              className="flex-1 h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white border-0"
+              onClick={handleSetupComplete}
+              disabled={!passphrase.trim()}
+            >
+              Finish Setup <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* BRANDING FOOTER */}
+      {(appState === 'setup') && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity bg-black/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/5 shadow-2xl" 
+             onClick={() => window.open('https://amplecen.com', '_blank')}>
+          <span className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Vela</span>
+          <div className="w-1 h-1 rounded-full bg-neutral-700 group-hover:bg-indigo-500 transition-colors" />
+          <span className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">By Amplecen</span>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
+      {/* LOGIN SCREEN */}
+      {appState === 'login' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
+          <div className="max-w-md w-full bg-neutral-900/80 border border-white/10 p-8 rounded-3xl shadow-2xl backdrop-blur-2xl">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight">{isRecovering ? 'Recovery Access' : 'Unlock Vela'}</h2>
+            </div>
+            <p className="text-neutral-400 text-sm mb-6">
+              {isRecovering 
+                ? "Enter your 16-digit recovery key to reset access." 
+                : <>Welcome back, <span className="text-white font-medium">{velaUser?.username}</span>.</>
+              }
+            </p>
+
+            <Illustration 
+              src="/illustrations/undraw_secure-usb-drive_7pj5.svg"
+              className="h-32 mb-8 mx-auto opacity-80"
+            />
+            
+            <form onSubmit={handleLogin} className="space-y-6">
+              {!isRecovering ? (
+                <div className="space-y-2">
+                  <Input
+                    type="password"
+                    autoFocus
+                    placeholder="Enter your passphrase..."
+                    value={loginPassphrase}
+                    onChange={(e) => { setLoginPassphrase(e.target.value); setLoginError(false); }}
+                    className={`bg-black/50 h-12 text-base rounded-xl ${loginError ? 'border-red-500 focus-visible:ring-red-500' : 'border-white/10 focus-visible:ring-indigo-500'}`}
+                  />
+                  <div className="flex justify-between items-center px-1">
+                    {loginError && <p className="text-red-400 text-xs">Incorrect passphrase.</p>}
+                    <button 
+                      type="button"
+                      onClick={() => setIsRecovering(true)}
+                      className="text-[11px] text-neutral-500 hover:text-white transition-colors underline ml-auto"
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium">
-                          {date.toLocaleDateString()} {date.toLocaleTimeString()}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity gap-1"
-                          onClick={() => restoreVersion(v.timestamp)}
-                        >
-                          <RotateCcw className="w-3 h-3" /> Restore
-                        </Button>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                        {preview || '(empty)'}{v.content.length > 120 ? '...' : ''}
-                      </p>
-                      <span className="text-[10px] text-muted-foreground/60 mt-1 block">
-                        {v.content.length.toLocaleString()} characters
-                      </span>
-                    </div>
-                  );
-                })}
+                      Forgot passphrase?
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    type="text"
+                    autoFocus
+                    placeholder="ENTER-RECOVERY-CODE"
+                    value={recoveryInput}
+                    onChange={(e) => { setRecoveryInput(e.target.value.toUpperCase()); setLoginError(false); }}
+                    className={`bg-black/50 h-12 text-base font-mono tracking-widest text-center rounded-xl ${loginError ? 'border-red-500 focus-visible:ring-red-500' : 'border-white/10 focus-visible:ring-indigo-500'}`}
+                  />
+                  <div className="flex justify-between items-center px-1">
+                    {loginError && <p className="text-red-400 text-xs">Invalid recovery key.</p>}
+                    <button 
+                      type="button"
+                      onClick={() => setIsRecovering(false)}
+                      className="text-[11px] text-neutral-500 hover:text-white transition-colors underline ml-auto"
+                    >
+                      Back to passphrase
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <Button 
+                type="submit"
+                onClick={(e) => {
+                  if (isRecovering) {
+                    e.preventDefault();
+                    const stored = localStorage.getItem('vela-user');
+                    if (stored) {
+                      const user = JSON.parse(stored);
+                      if (recoveryInput.replace(/-/g, '') === user.recoveryCode?.replace(/-/g, '')) {
+                        setAppState('setup'); // Force reset passphrase
+                        setSetupStep(3);
+                        setIsRecovering(false);
+                        setRecoveryInput('');
+                        setLoginPassphrase('');
+                        toast.success('Identity verified. Please set a new passphrase.');
+                      } else {
+                        setLoginError(true);
+                      }
+                    }
+                  }
+                }}
+                className={`w-full h-12 rounded-xl bg-white text-black hover:bg-neutral-200 ${isRecovering ? 'bg-indigo-500 text-white hover:bg-indigo-600 border-0' : ''}`}
+                disabled={isRecovering ? !recoveryInput : !loginPassphrase}
+              >
+                {isRecovering ? 'Verify Identity' : 'Unlock'} <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </form>
+            
+            {/* IN-BOX BRANDING */}
+            <div className="mt-8 pt-6 border-t border-white/5 flex justify-center items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity cursor-pointer group"
+                 onClick={() => window.open('https://amplecen.com', '_blank')}>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-400 font-medium">Vela</span>
+              <span className="text-[10px] text-neutral-600">by</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-300 group-hover:text-white transition-colors font-semibold">Amplecen</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+<EnclaveDialog
+  open={showEnclaveOnboarding}
+  onOpenChange={setShowEnclaveOnboarding}
+  avatars={AVATARS}
+  initialData={
+    editingEnclaveId
+      ? {
+          id: editingEnclaveId,
+          name: encName,
+          avatar: encAvatar,
+        }
+      : null
+  }
+  onSave={handleSaveEnclave}
+/>
+
+      {/* DASHBOARD */}
+      {appState === 'dashboard' && (
+        <div className="relative z-10 max-w-6xl mx-auto px-6 py-24">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="bg-white/10 text-white px-3 py-1 rounded-full text-xs font-medium tracking-wide">
+                  Operator: {velaUser?.username}
+                </span>
+                <button 
+                  onClick={() => {
+                    sessionStorage.removeItem('vela-logged-in');
+                    setAppState('login');
+                  }}
+                  className="text-xs text-neutral-500 hover:text-white flex items-center gap-1"
+                >
+                  <Lock className="w-3 h-3" /> Lock
+                </button>
               </div>
+              <h1 className="text-5xl font-semibold tracking-tighter mb-4">Vela</h1>
+              <p className="text-lg text-neutral-400 max-w-xl font-light">
+                Your private, judgment-free universe array. Select a world to enter.
+              </p>
+            </div>
+            {enclaves.length > 0 && (
+              <Button 
+                onClick={startNewEnclave}
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-full px-6 h-12 backdrop-blur-md"
+              >
+                <Plus className="w-5 h-5 mr-2" /> New Enclave
+              </Button>
             )}
-          </ScrollArea>
+          </div>
+
+          {enclaves.length === 0 && !showEnclaveOnboarding ? (
+            <div className="text-center py-32 border border-dashed border-white/10 rounded-3xl bg-white/[0.02]">
+              <Sparkles className="w-12 h-12 text-neutral-500 mx-auto mb-4" />
+              <h3 className="text-xl font-medium text-neutral-300 mb-2">No Enclaves exist</h3>
+              <p className="text-neutral-500 mb-6 font-light">Your universe array is completely empty.</p>
+              <Button 
+                onClick={startNewEnclave}
+                className="bg-white text-black hover:bg-neutral-200 rounded-full px-8 h-12"
+              >
+                Configure First Enclave
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {enclaves.map((enclave) => (
+                <div 
+                  key={enclave.id} 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, enclave.id)}
+                  onDragOver={(e) => handleDragOver(e, enclave.id)}
+                  onDrop={handleDrop}
+                  className={`group relative ${draggedEnclaveId === enclave.id ? 'opacity-50' : 'opacity-100'} transition-opacity`}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/[0.08] to-transparent rounded-3xl transform group-hover:scale-[1.02] transition-transform duration-500 ease-out -z-10" />
+                  
+                  <div className="bg-[#0f0f11] border border-white/5 rounded-3xl transition-colors duration-500 h-full flex flex-col overflow-hidden relative">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/[0.02] rounded-full blur-3xl group-hover:bg-indigo-500/10 transition-colors duration-700 pointer-events-none" />
+                    
+                    {/* ACTIONS BAR - ABSOLUTE POSITIONED TO TOP RIGHT */}
+                    <div className="absolute top-4 right-4 z-20 flex gap-1 bg-black/60 backdrop-blur-lg p-1.5 rounded-full border border-white/10 opacity-100 transition-all shadow-xl">
+                      {/* DRAG HANDLE */}
+                      <div
+                        className="p-1.5 cursor-grab active:cursor-grabbing text-neutral-500 hover:text-white transition-colors"
+                      >
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+
+                      {/* DUPLICATE */}
+                      <button
+                        onClick={(e) => handleDuplicateEnclave(enclave, e)}
+                        className="p-1.5 rounded-full hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
+                        title="Duplicate"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+
+                      {/* EDIT */}
+                      <button
+                        onClick={(e) => handleEditEnclave(enclave, e)}
+                        className="p-1.5 rounded-full hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
+                        title="Edit"
+                      >
+                        <PencilEdit01Icon className="w-4 h-4" />
+                      </button>
+
+                      {/* DELETE */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEnclaveToDelete(enclave);
+                        }}
+                        className="p-1.5 rounded-full hover:bg-red-500/10 text-neutral-500 hover:text-red-400 transition-colors"
+                        title="Delete"
+                      >
+                        🗑
+                      </button>
+                    </div>
+
+                    {/* MAIN CLICKABLE AREA */}
+                    <div 
+                      onClick={() => router.push(`/enclave/${enclave.id}`)}
+                      className="p-8 flex-1 flex flex-col justify-between cursor-pointer group-hover:bg-white/[0.02] transition-colors"
+                    >
+                      <div>
+                        <div className="flex justify-between items-start mb-6">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${getAvatarBg(enclave.avatar)}`}>
+                            {getAvatarIcon(enclave.avatar)}
+                          </div>
+                        </div>
+                        <h3 className="text-2xl font-medium tracking-tight font-heading mb-2 group-hover:text-white transition-colors">{enclave.name}</h3>
+                        <p className="text-sm text-neutral-500 font-light">{enclave.purpose || 'Workspace'}</p>
+                      </div>
+                      
+                      <div className="mt-8 flex items-center justify-between text-neutral-500">
+                        <span className="text-xs font-mono bg-white/[0.03] px-3 py-1 rounded-full">
+                          {new Date(enclave.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                          <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-32 pb-20 flex flex-col items-center gap-4 opacity-50 hover:opacity-100 transition-all duration-700 group">
+            <div className="h-px w-16 bg-gradient-to-r from-transparent via-neutral-700 to-transparent group-hover:via-indigo-500 transition-colors duration-500" />
+            <a 
+              href="https://amplecen.com" 
+              target="_blank" 
+              className="flex items-center gap-3 group no-underline px-6 py-3 rounded-full hover:bg-white/[0.03] transition-colors"
+            >
+              <span className="text-[11px] uppercase tracking-[0.4em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Vela</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/50 group-hover:bg-indigo-500 group-hover:scale-125 transition-all shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+              <span className="text-[11px] uppercase tracking-[0.4em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Amplecen</span>
+            </a>
+          </div>
+        </div>
+      )}
+      {/* DELETE CONFIRMATION DIALOG */}
+      <Dialog open={!!enclaveToDelete} onOpenChange={(open) => !open && setEnclaveToDelete(null)}>
+        <DialogContent className="max-w-md bg-neutral-900 border-white/10 rounded-3xl p-8">
+          <DialogHeader>
+            <DialogTitle>Delete Enclave</DialogTitle>
+            <DialogDescription className="text-neutral-400 mt-2">
+              Are you sure you want to delete <span className="text-white font-medium">"{enclaveToDelete?.name}"</span>? 
+              This will permanently remove all files and data within this enclave.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6 flex gap-3">
+            <Button 
+              variant="ghost" 
+              onClick={() => setEnclaveToDelete(null)}
+              className="rounded-xl border border-white/10"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => {
+                if (enclaveToDelete) {
+                  handleDeleteEnclave(enclaveToDelete.id);
+                  setEnclaveToDelete(null);
+                  toast.success('Enclave deleted');
+                }
+              }}
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+            >
+              Confirm Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
