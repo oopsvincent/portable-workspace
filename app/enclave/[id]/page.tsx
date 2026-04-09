@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, use } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -267,10 +267,11 @@ function hello() {
 
 ### Link
 
-[Visit GitHub](https://github.com)
+[Visit GitHub](https://github.com/oopsvincent/portable-workspace)
 
 ---
-
+Velä by Amplecen
+---
 *Start editing this file or create a new one to begin!*
 `;
 
@@ -544,7 +545,8 @@ function MarkdownToolbar({ textareaRef, content, onContentChange, viewMode, onVi
 }
 
 // ===== MAIN WORKSPACE PAGE =====
-export default function WorkspacePage({ params }: { params: { id: string } }) {
+export default function WorkspacePage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const [files, setFiles] = useState<storage.FileRecord[]>([]);
   const [openTabs, setOpenTabs] = useState<TabData[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
@@ -1480,7 +1482,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
       onDragLeave={(e) => { if (e.currentTarget === e.target) setIsDragging(false); }}
     >
       <Toaster position="bottom-right" theme="dark" richColors />
-
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
@@ -1516,7 +1517,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           e.target.value = '';
         }}
       />
-
       {/* HEADER */}
       <header className="h-10 border-b border-border flex items-center px-2 bg-card/30 flex-shrink-0">
         <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -1649,7 +1649,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           </DropdownMenu>
         </div>
       </header>
-
       {/* MAIN CONTENT */}
       <div className="flex-1 flex overflow-hidden">
         {/* Desktop Sidebar */}
@@ -1875,7 +1874,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           )}
         </div>
       </div>
-
       {/* STATUS BAR */}
       <footer className="h-6 border-t border-border flex items-center px-3 bg-card/30 text-[10px] text-muted-foreground flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -1933,7 +1931,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           </button>
         </div>
       </footer>
-
       {/* DIALOGS */}
       <Dialog open={dialogState.type === 'newFile'} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="sm:max-w-md">
@@ -1956,7 +1953,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       <Dialog open={dialogState.type === 'newFolder'} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1978,7 +1974,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       <Dialog open={dialogState.type === 'rename'} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1997,7 +1992,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       <Dialog open={dialogState.type === 'delete'} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2014,7 +2008,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       <Dialog open={dialogState.type === 'clearWorkspace'} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2029,7 +2022,6 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* HISTORY DIALOG */}
       <Dialog open={dialogState.type === 'history'} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="sm:max-w-lg max-h-[80vh]">
