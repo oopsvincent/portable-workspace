@@ -404,7 +404,7 @@ const handleSaveEnclave = async (data: {
         <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
           <Sparkles className="w-5 h-5 text-white" />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight">Welcome to Vela</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Welcome to Velä</h2>
       </div>
 
       {/* STEP 1 */}
@@ -417,7 +417,7 @@ const handleSaveEnclave = async (data: {
           />
 
           <p className="text-neutral-400 text-sm leading-relaxed">
-            Vela is designed as a standalone environment that lives entirely within your device. There are no servers, no trackers, and no external connections. Your thoughts, files, and interactions are completely safe, secure, and purely local.
+            Velä is designed as a standalone environment that lives entirely within your device. There are no servers, no trackers, and no external connections. Your thoughts, files, and interactions are completely safe, secure, and purely local.
           </p>
 
           <Button 
@@ -439,7 +439,7 @@ const handleSaveEnclave = async (data: {
           />
 
           <p className="text-neutral-400 text-sm leading-relaxed">
-            Within Vela, you isolate your worlds using Enclaves. An Enclave is a creative space tailored to a specific purpose. You could maintain one Enclave for writing code, and an entirely separate one for journaling. Data never crosses between Enclaves unless explicitly commanded.
+            Within Velä, you isolate your worlds using Enclaves. An Enclave is a creative space tailored to a specific purpose. You could maintain one Enclave for writing code, and an entirely separate one for journaling. Data never crosses between Enclaves unless explicitly commanded.
           </p>
 
           <div className="flex gap-3 pt-2">
@@ -533,9 +533,9 @@ const handleSaveEnclave = async (data: {
 
       {/* BRANDING FOOTER */}
       {(appState === 'setup') && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity bg-black/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/5 shadow-2xl" 
+        <div className="z-50 mt-3 flex justify-center items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity bg-black/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/5 shadow-2xl" 
              onClick={() => window.open('https://amplecen.com', '_blank')}>
-          <span className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Vela</span>
+          <span className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Velä</span>
           <div className="w-1 h-1 rounded-full bg-neutral-700 group-hover:bg-indigo-500 transition-colors" />
           <span className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">By Amplecen</span>
         </div>
@@ -552,7 +552,7 @@ const handleSaveEnclave = async (data: {
               <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
                 <ShieldCheck className="w-5 h-5 text-white" />
               </div>
-              <h2 className="text-2xl font-bold tracking-tight">{isRecovering ? 'Recovery Access' : 'Unlock Vela'}</h2>
+              <h2 className="text-2xl font-bold tracking-tight">{isRecovering ? 'Recovery Access' : 'Unlock Velä'}</h2>
             </div>
             <p className="text-neutral-400 text-sm mb-6">
               {isRecovering 
@@ -642,7 +642,7 @@ const handleSaveEnclave = async (data: {
             {/* IN-BOX BRANDING */}
             <div className="mt-8 pt-6 border-t border-white/5 flex justify-center items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity cursor-pointer group"
                  onClick={() => window.open('https://amplecen.com', '_blank')}>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-400 font-medium">Vela</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-400 font-medium">Velä</span>
               <span className="text-[10px] text-neutral-600">by</span>
               <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-300 group-hover:text-white transition-colors font-semibold">Amplecen</span>
             </div>
@@ -685,7 +685,7 @@ const handleSaveEnclave = async (data: {
                   <Lock className="w-3 h-3" /> Lock
                 </button>
               </div>
-              <h1 className="text-5xl font-semibold tracking-tighter mb-4">Vela</h1>
+              <h1 className="text-5xl font-semibold tracking-tighter mb-4">Velä</h1>
               <p className="text-lg text-neutral-400 max-w-xl font-light">
                 Your private, judgment-free universe array. Select a world to enter.
               </p>
@@ -806,7 +806,7 @@ const handleSaveEnclave = async (data: {
               target="_blank" 
               className="flex items-center gap-3 group no-underline px-6 py-3 rounded-full hover:bg-white/[0.03] transition-colors"
             >
-              <span className="text-[11px] uppercase tracking-[0.4em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Vela</span>
+              <span className="text-[11px] uppercase tracking-[0.4em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Velä</span>
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/50 group-hover:bg-indigo-500 group-hover:scale-125 transition-all shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
               <span className="text-[11px] uppercase tracking-[0.4em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Amplecen</span>
             </a>

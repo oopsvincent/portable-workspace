@@ -1,6 +1,6 @@
 {
-  "name": "Portable Workspace",
-  "short_name": "Workspace",
+  "name": "Velä by Amplecen",
+  "short_name": "Velä",
   "description": "Private, browser-based markdown editor and file manager. All data stays in your browser.",
   "start_url": "/",
   "display": "standalone",

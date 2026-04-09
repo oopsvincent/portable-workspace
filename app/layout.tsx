@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair' });
 
 export const metadata: Metadata = {
-  title: 'Portable Workspace',
+  title: 'Velä by Amplecen',
   description: 'Private, browser-based markdown editor and file manager. All data stays in your browser.',
   manifest: '/manifest.json',
   appleWebApp: {
