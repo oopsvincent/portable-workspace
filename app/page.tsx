@@ -533,7 +533,7 @@ const handleSaveEnclave = async (data: {
 
       {/* BRANDING FOOTER */}
       {(appState === 'setup') && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity bg-black/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/5 shadow-2xl" 
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity bg-black/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/5 shadow-2xl" 
              onClick={() => window.open('https://amplecen.com', '_blank')}>
           <span className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 group-hover:text-neutral-300 transition-colors font-medium">Vela</span>
           <div className="w-1 h-1 rounded-full bg-neutral-700 group-hover:bg-indigo-500 transition-colors" />
